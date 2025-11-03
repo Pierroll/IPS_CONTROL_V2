@@ -1,0 +1,1117 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  password        String
+  name            String
+  firstName       String?           @map("first_name")
+  lastName        String?           @map("last_name")
+  phone           String?
+  avatar          String?
+  role            Role              @default(SELLER)
+  active          Boolean           @default(true)
+  emailVerified   Boolean           @default(false) @map("email_verified")
+  lastLogin       DateTime?         @map("last_login")
+  loginAttempts   Int               @default(0) @map("login_attempts")
+  lockedUntil     DateTime?         @map("locked_until")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  deletedAt       DateTime?         @map("deleted_at")
+  settings        Json?
+  timezone        String            @default("America/Lima")
+  language        String            @default("es")
+  auditLogs       AuditLog[]
+  receiptsCreated InternalReceipt[] @relation("ReceiptCreatedBy")
+  devicesCreated  NetworkDevice[]   @relation("DeviceCreatedBy")
+  notifications   Notification[]    @relation("NotificationUser")
+  paymentsCreated Payment[]         @relation("PaymentCreatedBy")
+  advancePaymentsCreated AdvancePayment[] @relation("AdvancePaymentCreatedBy")
+  plansCreated    Plan[]            @relation("PlanCreatedBy")
+  refreshTokens   RefreshToken[]
+  technician      Technician?       @relation("TechnicianUser")
+  ticketHistory   TicketHistory[]
+  ticketsAssigned Ticket[]          @relation("TicketAssignedTo")
+  ticketsCreated  Ticket[]          @relation("TicketCreatedBy")
+  workLogs        WorkLog[]
+
+  @@index([email])
+  @@index([role])
+  @@index([active])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  revoked   Boolean  @default(false)
+  userAgent String?  @map("user_agent")
+  ipAddress String?  @map("ip_address")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Customer {
+  id               String            @id @default(uuid())
+  code             String            @unique
+  name             String
+  businessName     String?           @map("business_name")
+  email            String?
+  phone            String
+  alternativePhone String?           @map("alternative_phone")
+  address          String?
+  district         String?
+  province         String?
+  department       String?
+  documentNumber   String?           @map("document_number")
+  documentType     DocumentType?     @map("document_type")
+  customerType     CustomerType      @default(INDIVIDUAL) @map("customer_type")
+  serviceType      String?           @map("service_type")
+  contractDate     DateTime?         @map("contract_date")
+  status           CustomerStatus    @default(ACTIVE)
+  creditLimit      Decimal?          @map("credit_limit") @db.Decimal(10, 2)
+  notes            String?
+  tags             String[]          @default([])
+  priority         Priority          @default(MEDIA)
+  source           String?
+  assignedSeller   String?           @map("assigned_seller")
+  createdBy        String            @map("created_by")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  deletedAt        DateTime?         @map("deleted_at")
+  technicianId     String?           @map("technician_id") @db.Uuid
+  primaryDeviceId  String?           @map("primary_device_id")
+  billingAccount   BillingAccount?
+  customerContacts CustomerContact[]
+  customerPlans    CustomerPlan[]
+  internalReceipts InternalReceipt[]
+  invoices         Invoice[]         @relation("InvoiceCustomer")
+  messageLogs      MessageLog[]
+  payments         Payment[]         @relation("PaymentCustomer")
+  advancePayments  AdvancePayment[]  @relation("AdvancePaymentCustomer")
+  pppoeAccounts    PppoeAccount[]
+  queueRules       QueueRule[]
+  serviceContracts ServiceContract[]
+  tickets          Ticket[]
+
+  @@index([code])
+  @@index([email])
+  @@index([phone])
+  @@index([documentNumber])
+  @@index([status])
+  @@index([assignedSeller])
+  @@index([district])
+  @@index([technicianId])
+  @@index([district, status])
+  @@index([status, createdAt])
+  @@index([customerType, status])
+  @@map("customers")
+}
+
+model CustomerContact {
+  id         String   @id @default(uuid())
+  customerId String   @map("customer_id")
+  name       String
+  position   String?
+  phone      String?
+  email      String?
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("customer_contacts")
+}
+
+model Technician {
+  id             String    @id @default(uuid())
+  code           String    @unique
+  name           String
+  phone          String
+  email          String?
+  documentNumber String?   @map("document_number")
+  userId         String?   @unique @map("user_id")
+  specialties    Json?
+  certifications Json?
+  experience     Int?
+  hourlyRate     Decimal?  @map("hourly_rate") @db.Decimal(8, 2)
+  workSchedule   Json?     @map("work_schedule")
+  isExternal     Boolean   @default(true) @map("is_external")
+  active         Boolean   @default(true)
+  rating         Decimal?  @db.Decimal(3, 2)
+  totalJobs      Int       @default(0) @map("total_jobs")
+  district       String
+  province       String?   @default("Huánuco")
+  department     String?   @default("Huánuco")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+  createdBy      String    @map("created_by")
+  user           User?     @relation("TechnicianUser", fields: [userId], references: [id])
+  tickets        Ticket[]
+
+  @@unique([district, active])
+  @@index([code])
+  @@index([phone])
+  @@index([active])
+  @@index([userId])
+  @@index([district])
+  @@index([active, district])
+  @@map("technicians")
+}
+
+model TechnicianRating {
+  id           String   @id @default(uuid())
+  technicianId String   @map("technician_id") @db.Uuid
+  ticketId     String   @unique @map("ticket_id")
+  rating       Int
+  comment      String?
+  createdBy    String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  ticket       Ticket   @relation(fields: [ticketId], references: [id])
+
+  @@index([technicianId])
+  @@map("technician_ratings")
+}
+
+model Plan {
+  id             String       @id @default(uuid())
+  code           String       @unique @default(dbgenerated("concat('PLAN-', to_char(nextval('plan_seq'::regclass), 'FM0000'::text))")) @map("code") @db.VarChar(32)
+  name           String
+  description    String?
+  category       PlanCategory @default(INTERNET)
+  subcategory    String?      @map("subcategory")
+  downloadSpeed  Decimal?     @map("download_speed") @db.Decimal(10, 2)
+  uploadSpeed    Decimal?     @map("upload_speed") @db.Decimal(10, 2)
+  dataLimit      Int?         @map("data_limit")
+  monthlyPrice   Decimal      @map("monthly_price") @db.Decimal(10, 2)
+  setupFee       Decimal?     @map("setup_fee") @db.Decimal(10, 2)
+  active         Boolean      @default(true)
+  isPromotional  Boolean      @default(false) @map("is_promotional")
+  slaLevel       SLALevel     @default(STANDARD) @map("sla_level")
+  supportHours   String?      @map("support_hours")
+  features       Json?
+  restrictions   Json?
+  targetAudience Json?        @map("target_audience")
+  mikrotikProfileName String? @map("mikrotik_profile_name")
+  createdBy      String       @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+
+  // Relación con PlanNetworkDevice
+  planNetworkDevices PlanNetworkDevice[]
+
+  customerPlans CustomerPlan[]
+  invoiceItems  InvoiceItem[]
+  creator       User              @relation("PlanCreatedBy", fields: [createdBy], references: [id])
+  queueRules    QueueRule[]
+  contracts     ServiceContract[]
+
+  @@index([code])
+  @@index([category])
+  @@index([active])
+  @@index([subcategory])
+  @@map("plans")
+}
+
+model CustomerPlan {
+  id             String          @id @default(uuid())
+  customerId     String          @map("customer_id")
+  planId         String          @map("plan_id")
+  status         PlanStatus      @default(ACTIVE)
+  startDate      DateTime        @map("start_date")
+  endDate        DateTime?       @map("end_date")
+  changeType     PlanChangeType? @map("change_type")
+  changeReason   String?         @map("change_reason")
+  previousPlanId String?         @map("previous_plan_id")
+  notes          String?
+  changedBy      String?         @map("changed_by")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  plan           Plan            @relation(fields: [planId], references: [id])
+
+  @@index([customerId])
+  @@index([planId])
+  @@index([status])
+  @@index([startDate])
+  @@map("customer_plans")
+}
+
+model NetworkDevice {
+  id             String            @id @default(uuid())
+  code           String            @unique
+  name           String
+  deviceType     NetworkDeviceType
+  brand          String?
+  model          String?
+  ipAddress      String            @map("ip_address")
+  port           Int?              @default(8728)
+  apiPort        Int?              @default(8729) @map("api_port")
+  connectionType ConnectionType    @default(SSH) @map("connection_type")
+  useTls         Boolean           @default(false) @map("use_tls")
+
+  location          String?
+  district          String?
+  province          String?      @default("Huánuco")
+  department        String?      @default("Huánuco")
+  coordinates       String?
+  status            DeviceStatus @default(ACTIVE)
+  lastSeen          DateTime?    @map("last_seen")
+  uptime            Int?
+  firmware          String?
+  serialNumber      String?      @map("serial_number")
+  macAddress        String?      @map("mac_address")
+  monitoringEnabled Boolean      @default(true) @map("monitoring_enabled")
+  alertsEnabled     Boolean      @default(true) @map("alerts_enabled")
+  cpuLoad           Decimal?     @map("cpu_load") @db.Decimal(5, 2)
+  memoryUsage       Decimal?     @map("memory_usage") @db.Decimal(5, 2)
+  activeConnections Int?         @default(0) @map("active_connections")
+  totalCustomers    Int?         @default(0) @map("total_customers")
+  createdBy         String       @map("created_by")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  deletedAt         DateTime?    @map("deleted_at")
+
+  // Relación con PlanNetworkDevice
+  planNetworkDevices PlanNetworkDevice[]
+
+  alerts        DeviceAlert[]
+  credentials   DeviceCredential[]
+  metrics       DeviceMetric[]
+  creator       User               @relation("DeviceCreatedBy", fields: [createdBy], references: [id])
+  pppoeAccounts PppoeAccount[]
+  queueRules    QueueRule[]
+  tickets       Ticket[]
+  routerLogs    RouterLog[]
+
+  @@index([code])
+  @@index([ipAddress])
+  @@index([status])
+  @@index([deviceType])
+  @@index([district])
+  @@index([district, status])
+  @@index([province, district])
+  @@map("network_devices")
+}
+
+model RouterLog {
+  id        String        @id @default(uuid())
+  deviceId  String        @map("device_id")
+  action    String
+  username  String?
+  success   Boolean
+  message   String?
+  metadata  Json?
+  createdAt DateTime      @default(now()) @map("created_at")
+  device    NetworkDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([action])
+  @@index([success])
+  @@index([createdAt])
+  @@map("router_logs")
+}
+
+model DeviceCredential {
+  id         String        @id @default(uuid())
+  deviceId   String        @map("device_id")
+  type       String
+  username   String?
+  password   String
+  iv         String
+  algorithm  String        @default("aes-256-gcm")
+  authTag    String? // ✅ AGREGAR ESTE CAMPO
+  community  String?
+  privateKey String?
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+  device     NetworkDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, type])
+  @@index([deviceId])
+  @@map("device_credentials")
+}
+
+model DeviceMetric {
+  id          String        @id @default(uuid())
+  deviceId    String        @map("device_id")
+  cpuUsage    Decimal?      @map("cpu_usage") @db.Decimal(5, 2)
+  memoryUsage Decimal?      @map("memory_usage") @db.Decimal(5, 2)
+  temperature Decimal?      @db.Decimal(5, 2)
+  uptime      Int?
+  bytesIn     BigInt?       @map("bytes_in")
+  bytesOut    BigInt?       @map("bytes_out")
+  packetsIn   BigInt?       @map("packets_in")
+  packetsOut  BigInt?       @map("packets_out")
+  timestamp   DateTime
+  createdAt   DateTime      @default(now()) @map("created_at")
+  device      NetworkDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, timestamp])
+  @@index([timestamp])
+  @@map("device_metrics")
+}
+
+model DeviceAlert {
+  id           String        @id @default(uuid())
+  deviceId     String        @map("device_id")
+  alertType    AlertType
+  severity     AlertSeverity @default(WARNING)
+  title        String
+  message      String
+  resolved     Boolean       @default(false)
+  resolvedAt   DateTime?     @map("resolved_at")
+  resolvedBy   String?       @map("resolved_by")
+  threshold    Decimal?      @db.Decimal(10, 2)
+  currentValue Decimal?      @map("current_value") @db.Decimal(10, 2)
+  data         Json?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  device       NetworkDevice @relation(fields: [deviceId], references: [id])
+
+  @@index([deviceId])
+  @@index([resolved])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("device_alerts")
+}
+
+model PppoeAccount {
+  id         String        @id @default(uuid())
+  deviceId   String        @map("device_id")
+  customerId String        @map("customer_id")
+  username   String
+  password   String
+  iv         String
+  authTag    String? // ✅ AGREGAR ESTE CAMPO TAMBIÉN
+  algorithm  String        @default("aes-256-gcm")
+  profile    String?
+  active     Boolean       @default(true)
+  bytesIn    BigInt?       @default(0) @map("bytes_in")
+  bytesOut   BigInt?       @default(0) @map("bytes_out")
+  lastLogin  DateTime?     @map("last_login")
+  notes      String?
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+  deletedAt  DateTime?     @map("deleted_at")
+  customer   Customer      @relation(fields: [customerId], references: [id])
+  device     NetworkDevice @relation(fields: [deviceId], references: [id])
+
+  @@unique([deviceId, username])
+  @@unique([deviceId, customerId])
+  @@index([customerId])
+  @@index([active])
+  @@map("pppoe_accounts")
+}
+
+model PlanNetworkDevice {
+  id            String   @id @default(uuid())
+  planId        String   @map("plan_id")
+  deviceId      String   @map("device_id")
+  normalProfile String?  @map("normal_profile")
+  cutProfile    String?  @map("cut_profile")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  plan   Plan          @relation(fields: [planId], references: [id])
+  device NetworkDevice @relation(fields: [deviceId], references: [id])
+
+  @@index([planId])
+  @@index([deviceId])
+  @@map("plan_network_devices")
+}
+
+model QueueRule {
+  id              String        @id @default(uuid())
+  deviceId        String        @map("device_id")
+  customerId      String?       @map("customer_id")
+  planId          String?       @map("plan_id")
+  name            String
+  targetAddr      String        @map("target_addr")
+  maxUpload       String        @map("max_upload")
+  maxDownload     String        @map("max_download")
+  maxUploadKbps   Int?          @map("max_upload_kbps")
+  maxDownloadKbps Int?          @map("max_download_kbps")
+  priority        Int?          @default(8)
+  active          Boolean       @default(true)
+  notes           String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+  customer        Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  device          NetworkDevice @relation(fields: [deviceId], references: [id])
+  plan            Plan?         @relation(fields: [planId], references: [id])
+
+  @@unique([deviceId, targetAddr])
+  @@index([deviceId])
+  @@index([customerId])
+  @@index([active])
+  @@index([maxUploadKbps])
+  @@index([maxDownloadKbps])
+  @@map("queue_rules")
+}
+
+model BillingAccount {
+  id              String        @id @default(uuid())
+  customerId      String        @unique @map("customer_id")
+  balance         Decimal       @default(0) @db.Decimal(10, 2)
+  creditLimit     Decimal?      @map("credit_limit") @db.Decimal(10, 2)
+  status          BillingStatus @default(ACTIVE)
+  suspendedAt     DateTime?     @map("suspended_at")
+  lastPaymentDate DateTime?     @map("last_payment_date")
+  billingCycle    Int           @default(1) @map("billing_cycle")
+  autoSuspend     Boolean       @default(true) @map("auto_suspend")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  invoices        Invoice[]
+  ledgerEntries   LedgerEntry[]
+  payments        Payment[]
+  advancePayments AdvancePayment[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([balance])
+  @@map("billing_accounts")
+}
+
+model Invoice {
+  id               String            @id @default(uuid())
+  invoiceNumber    String            @unique @default(dbgenerated("concat('INV-', to_char(nextval('invoice_seq'::regclass), 'FM000000'::text))")) @map("invoice_number") @db.VarChar(32)
+  customerId       String            @map("customer_id")
+  billingAccountId String            @map("billing_account_id")
+  periodStart      DateTime          @map("period_start")
+  periodEnd        DateTime          @map("period_end")
+  subtotal         Decimal           @db.Decimal(10, 2)
+  tax              Decimal           @default(0) @db.Decimal(10, 2)
+  discount         Decimal           @default(0) @db.Decimal(10, 2)
+  total            Decimal           @db.Decimal(10, 2)
+  balanceDue       Decimal           @map("balance_due") @db.Decimal(10, 2)
+  issueDate        DateTime          @map("issue_date")
+  dueDate          DateTime          @map("due_date")
+  status           InvoiceStatus     @default(PENDING)
+  messageLogs      MessageLog[]
+  notes            String?
+  currency         String            @default("PEN")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  internalReceipts InternalReceipt[]
+  items            InvoiceItem[]
+  billingAccount   BillingAccount    @relation(fields: [billingAccountId], references: [id])
+  customer         Customer          @relation("InvoiceCustomer", fields: [customerId], references: [id])
+  ledgerEntries    LedgerEntry[]
+  payments         Payment[]
+  advanceMonthlyPayments AdvanceMonthlyPayment[]
+
+  @@unique([customerId, periodStart, periodEnd])
+  @@index([invoiceNumber])
+  @@index([customerId])
+  @@index([billingAccountId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([status, dueDate])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(uuid())
+  invoiceId   String  @map("invoice_id")
+  description String
+  quantity    Decimal @db.Decimal(10, 2)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(10, 2)
+  planId      String? @map("plan_id")
+  ticketId    String? @map("ticket_id")
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  plan        Plan?   @relation(fields: [planId], references: [id])
+  ticket      Ticket? @relation(fields: [ticketId], references: [id])
+
+  @@index([invoiceId])
+  @@index([planId])
+  @@index([ticketId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id               String         @id @default(uuid())
+  paymentNumber    String         @unique @default(dbgenerated("concat('PAY-', to_char(nextval('payment_seq'::regclass), 'FM000000'::text))")) @map("payment_number") @db.VarChar(32)
+  customerId       String         @map("customer_id")
+  billingAccountId String         @map("billing_account_id")
+  invoiceId        String?        @map("invoice_id")
+  amount           Decimal        @db.Decimal(10, 2)
+  currency         String         @default("PEN")
+  paymentMethod    PaymentMethod  @map("payment_method")
+  reference        String?
+  status           PaymentStatus  @default(PENDING)
+  paymentDate      DateTime       @map("payment_date")
+  processedDate    DateTime?      @map("processed_date")
+  notes            String?
+  receiptUrl       String?        @map("receipt_url")
+  createdBy        String         @map("created_by")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  ledgerEntries    LedgerEntry[]
+  billingAccount   BillingAccount @relation(fields: [billingAccountId], references: [id])
+  creator          User           @relation("PaymentCreatedBy", fields: [createdBy], references: [id])
+  customer         Customer       @relation("PaymentCustomer", fields: [customerId], references: [id])
+  invoice          Invoice?       @relation(fields: [invoiceId], references: [id])
+
+  @@index([customerId])
+  @@index([billingAccountId])
+  @@index([invoiceId])
+  @@index([status])
+  @@index([paymentDate])
+  @@index([customerId, paymentDate])
+  @@index([paymentMethod, status])
+  @@index([status, paymentDate])
+  @@map("payments")
+}
+
+model AdvancePayment {
+  id               String         @id @default(uuid())
+  customerId       String         @map("customer_id")
+  billingAccountId String         @map("billing_account_id")
+  totalAmount      Decimal        @map("total_amount") @db.Decimal(10, 2)
+  monthsCount      Int            @map("months_count")
+  amountPerMonth   Decimal        @map("amount_per_month") @db.Decimal(10, 2)
+  paymentMethod    PaymentMethod  @map("payment_method")
+  reference        String?
+  notes            String?
+  status           AdvancePaymentStatus @default(ACTIVE)
+  paymentDate      DateTime       @map("payment_date")
+  createdBy        String         @map("created_by")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  billingAccount   BillingAccount @relation(fields: [billingAccountId], references: [id])
+  creator          User           @relation("AdvancePaymentCreatedBy", fields: [createdBy], references: [id])
+  customer         Customer       @relation("AdvancePaymentCustomer", fields: [customerId], references: [id])
+  monthlyPayments  AdvanceMonthlyPayment[]
+
+  @@index([customerId])
+  @@index([billingAccountId])
+  @@index([status])
+  @@index([paymentDate])
+  @@index([customerId, paymentDate])
+  @@map("advance_payments")
+}
+
+model AdvanceMonthlyPayment {
+  id                String         @id @default(uuid())
+  advancePaymentId  String         @map("advance_payment_id")
+  month             Int            // 1-12 (enero-diciembre)
+  year              Int            // 2025, 2026, etc.
+  amount            Decimal        @db.Decimal(10, 2)
+  status            AdvanceMonthlyStatus @default(PENDING)
+  appliedAt         DateTime?      @map("applied_at")
+  appliedToInvoiceId String?       @map("applied_to_invoice_id")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  advancePayment    AdvancePayment @relation(fields: [advancePaymentId], references: [id], onDelete: Cascade)
+  appliedToInvoice  Invoice?       @relation(fields: [appliedToInvoiceId], references: [id])
+
+  @@unique([advancePaymentId, month, year]) // Un pago adelantado por mes/año
+  @@index([advancePaymentId])
+  @@index([month, year])
+  @@index([status])
+  @@index([appliedAt])
+  @@map("advance_monthly_payments")
+}
+
+model LedgerEntry {
+  id               String         @id @default(uuid())
+  customerId       String         @map("customer_id")
+  billingAccountId String         @map("billing_account_id")
+  type             LedgerType
+  amount           Decimal        @db.Decimal(10, 2)
+  description      String
+  invoiceId        String?        @map("invoice_id")
+  paymentId        String?        @map("payment_id")
+  referenceType    String?        @map("reference_type")
+  referenceId      String?        @map("reference_id")
+  transactionDate  DateTime       @map("transaction_date")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  billingAccount   BillingAccount @relation(fields: [billingAccountId], references: [id])
+  invoice          Invoice?       @relation(fields: [invoiceId], references: [id])
+  payment          Payment?       @relation(fields: [paymentId], references: [id])
+
+  @@index([customerId])
+  @@index([billingAccountId])
+  @@index([transactionDate])
+  @@index([type])
+  @@map("ledger_entries")
+}
+
+model MessageLog {
+  id           String           @id @default(uuid())
+  customerId   String?          @map("customer_id")
+  ticketId     String?          @map("ticket_id")
+  invoiceId    String?          @map("invoice_id")
+  direction    MessageDirection @default(OUTBOUND)
+  channel      MessageChannel
+  phoneNumber  String?          @map("phone_number")
+  email        String?
+  messageType  MessageType      @map("message_type")
+  title        String?
+  content      String
+  templateId   String?          @map("template_id")
+  status       MessageStatus    @default(PENDING)
+  externalId   String?          @map("external_id")
+  providerId   String?          @map("provider_id")
+  retryCount   Int              @default(0) @map("retry_count")
+  errorMessage String?          @map("error_message")
+  sentAt       DateTime?        @map("sent_at")
+  deliveredAt  DateTime?        @map("delivered_at")
+  readAt       DateTime?        @map("read_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  customer     Customer?        @relation(fields: [customerId], references: [id])
+  ticket       Ticket?          @relation(fields: [ticketId], references: [id])
+  invoice      Invoice?         @relation(fields: [invoiceId], references: [id])
+
+  @@index([customerId])
+  @@index([channel])
+  @@index([status])
+  @@index([createdAt])
+  @@map("message_logs")
+}
+
+model Ticket {
+  id                 String             @id @default(uuid())
+  ticketNumber       String             @unique @map("ticket_number")
+  customerId         String             @map("customer_id")
+  assignedTechnician String?            @map("assigned_technician")
+  assignedTo         String?            @map("assigned_to")
+  createdBy          String             @map("created_by")
+  title              String
+  description        String
+  category           TicketCategory
+  subcategory        String?
+  priority           Priority           @default(MEDIA)
+  status             TicketStatus       @default(PENDIENTE)
+  scheduledDate      DateTime?          @map("scheduled_date")
+  startedDate        DateTime?          @map("started_date")
+  completedDate      DateTime?          @map("completed_date")
+  dueDate            DateTime?          @map("due_date")
+  estimatedCost      Decimal?           @map("estimated_cost") @db.Decimal(10, 2)
+  actualCost         Decimal?           @map("actual_cost") @db.Decimal(10, 2)
+  estimatedHours     Decimal?           @map("estimated_hours") @db.Decimal(5, 2)
+  actualHours        Decimal?           @map("actual_hours") @db.Decimal(5, 2)
+  serviceAddress     String?            @map("service_address")
+  serviceDistrict    String?            @map("service_district")
+  gpsCoordinates     String?            @map("gps_coordinates")
+  notes              String?
+  internalNotes      String?            @map("internal_notes")
+  clientNotes        String?            @map("client_notes")
+  tags               String[]           @default([])
+  slaLevel           SLALevel           @default(STANDARD) @map("sla_level")
+  responseTime       Int?               @map("response_time")
+  resolutionTime     Int?               @map("resolution_time")
+  escalationLevel    Int                @default(0) @map("escalation_level")
+  escalatedTo        String?            @map("escalated_to")
+  escalationReason   String?            @map("escalation_reason")
+  relatedDeviceId    String?            @map("related_device_id")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  deletedAt          DateTime?          @map("deleted_at")
+  internalReceipts   InternalReceipt[]
+  invoiceItems       InvoiceItem[]
+  messageLogs        MessageLog[]
+  rating             TechnicianRating?
+  attachments        TicketAttachment[]
+  history            TicketHistory[]
+  technician         Technician?        @relation(fields: [assignedTechnician], references: [id])
+  assignedUser       User?              @relation("TicketAssignedTo", fields: [assignedTo], references: [id])
+  creator            User               @relation("TicketCreatedBy", fields: [createdBy], references: [id])
+  customer           Customer           @relation(fields: [customerId], references: [id])
+  relatedDevice      NetworkDevice?     @relation(fields: [relatedDeviceId], references: [id])
+  workLogs           WorkLog[]
+
+  @@index([ticketNumber])
+  @@index([customerId])
+  @@index([assignedTechnician])
+  @@index([assignedTo])
+  @@index([status])
+  @@index([category])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([dueDate])
+  @@index([customerId, status])
+  @@index([assignedTechnician, status])
+  @@index([status, priority])
+  @@index([createdAt, status])
+  @@map("tickets")
+}
+
+model ServiceContract {
+  id             String         @id @default(uuid())
+  customerId     String         @map("customer_id")
+  planId         String         @map("plan_id")
+  contractNumber String         @unique @default(dbgenerated("concat('CTR-', to_char(nextval('contract_seq'::regclass), 'FM000000'::text))")) @map("contract_number") @db.VarChar(32)
+  startDate      DateTime       @map("start_date")
+  endDate        DateTime?      @map("end_date")
+  status         ContractStatus @default(ACTIVE)
+  customer       Customer       @relation(fields: [customerId], references: [id])
+  plan           Plan           @relation(fields: [planId], references: [id])
+
+  @@index([customerId])
+  @@index([planId])
+  @@index([status])
+  @@map("service_contracts")
+}
+
+model InternalReceipt {
+  id            String      @id @default(uuid())
+  receiptNumber String      @unique @default(dbgenerated("concat('REC-', to_char(nextval('receipt_seq'::regclass), 'FM000000'::text))")) @map("receipt_number") @db.VarChar(32)
+  customerId    String      @map("customer_id")
+  ticketId      String?     @map("ticket_id")
+  invoiceId     String?     @map("invoice_id")
+  amount        Decimal     @db.Decimal(10, 2)
+  description   String
+  receiptType   ReceiptType @map("receipt_type")
+  createdBy     String      @map("created_by")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  creator       User        @relation("ReceiptCreatedBy", fields: [createdBy], references: [id])
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  invoice       Invoice?    @relation(fields: [invoiceId], references: [id])
+  ticket        Ticket?     @relation(fields: [ticketId], references: [id])
+
+  @@index([customerId])
+  @@index([ticketId])
+  @@index([receiptType])
+  @@map("internal_receipts")
+}
+
+model TicketHistory {
+  id        String   @id @default(uuid())
+  ticketId  String   @map("ticket_id")
+  userId    String   @map("user_id")
+  action    String
+  oldValue  Json?    @map("old_value")
+  newValue  Json?    @map("new_value")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("ticket_history")
+}
+
+model TicketAttachment {
+  id           String   @id @default(uuid())
+  ticketId     String   @map("ticket_id")
+  filename     String
+  originalName String   @map("original_name")
+  mimeType     String   @map("mime_type")
+  size         Int
+  url          String
+  uploadedBy   String   @map("uploaded_by")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("ticket_attachments")
+}
+
+model WorkLog {
+  id          String   @id @default(uuid())
+  ticketId    String   @map("ticket_id")
+  userId      String   @map("user_id")
+  description String
+  hoursSpent  Decimal  @map("hours_spent") @db.Decimal(5, 2)
+  workDate    DateTime @map("work_date")
+  billable    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([ticketId])
+  @@index([userId])
+  @@index([workDate])
+  @@map("work_logs")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  title     String
+  message   String
+  type      NotificationType
+  read      Boolean          @default(false)
+  data      Json?
+  createdAt DateTime         @default(now()) @map("created_at")
+  readAt    DateTime?        @map("read_at")
+  user      User             @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  SELLER
+  TECHNICIAN
+  SUPPORT
+}
+
+enum DocumentType {
+  DNI
+  RUC
+  PASSPORT
+  CE
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  BUSINESS
+  CORPORATION
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PROSPECT
+  CHURNED
+}
+
+enum Priority {
+  BAJA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum PlanCategory {
+  INTERNET
+  TELEVISION
+  TELEPHONE
+  BUNDLE
+}
+
+enum SLALevel {
+  BASIC
+  STANDARD
+  PREMIUM
+  ENTERPRISE
+}
+
+enum PlanStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum PlanChangeType {
+  UPGRADE
+  DOWNGRADE
+  LATERAL
+  SUSPENSION
+  REACTIVATION
+  NEW
+}
+
+enum NetworkDeviceType {
+  ROUTER
+  MIKROTIK_ROUTER
+  SWITCH
+  ACCESS_POINT
+  FIREWALL
+  MODEM
+  ONT
+  OLT
+}
+
+enum ConnectionType {
+  SSH
+  TELNET
+  HTTP
+  HTTPS
+  SNMP
+}
+
+enum DeviceStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  FAILED
+}
+
+enum AlertType {
+  CPU_HIGH
+  MEMORY_HIGH
+  DISK_FULL
+  INTERFACE_DOWN
+  DEVICE_OFFLINE
+  TEMPERATURE_HIGH
+  CUSTOM
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum BillingStatus {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+  VOID
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CREDIT_CARD
+  DEBIT_CARD
+  CHECK
+  DIGITAL_WALLET
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum AdvancePaymentStatus {
+  ACTIVE
+  CANCELLED
+  COMPLETED
+}
+
+enum AdvanceMonthlyStatus {
+  PENDING
+  APPLIED
+  CANCELLED
+}
+
+enum LedgerType {
+  DEBIT
+  CREDIT
+}
+
+enum MessageChannel {
+  SMS
+  WHATSAPP
+  EMAIL
+  PUSH
+  VOICE
+}
+
+enum MessageType {
+  WELCOME
+  PAYMENT_REMINDER
+  SERVICE_NOTIFICATION
+  TECHNICAL_ALERT
+  PROMOTIONAL
+  SUPPORT
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum TicketCategory {
+  INSTALACION
+  SOPORTE_TECNICO
+  MANTENIMIENTO
+  RECLAMO
+  CONSULTA
+  SUSPENSION
+  REACTIVACION
+  CAMBIO_PLAN
+}
+
+enum TicketStatus {
+  PENDIENTE
+  ASIGNADO
+  EN_PROGRESO
+  ESCALADO
+  EN_ESPERA
+  RESUELTO
+  CERRADO
+  CANCELADO
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+}
+
+enum ReceiptType {
+  SERVICE
+  INSTALLATION
+  MAINTENANCE
+  REFUND
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ERROR
+  SUCCESS
+}

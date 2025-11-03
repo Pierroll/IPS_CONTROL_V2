@@ -1,0 +1,102 @@
+# Dependencias
+node_modules/
+
+# Entornos
+.env
+.env.local
+.env.*.local
+*.env
+
+# Builds y compilaciones
+dist/
+build/
+.next/
+out/
+.cache/
+
+# Logsf
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistemas operativos
+.DS_Store
+Thumbs.db
+
+# Cobertura y pruebas
+coverage/
+.nyc_output/
+jest-stare/
+cypress/videos/
+cypress/screenshots/
+
+# Archivos temporales
+*.tmp
+*.swp
+*.swo
+*.bak
+
+# Prisma (archivos generados)
+backend/src/generated/
+
+# Uploads (si no quieres subir PDFs o imágenes generadas)
+uploads/
+uploads/**
+
+# Vercel/Netlify
+.vercel/
+.netlify/
+
+# IDEs/editores
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+kirim-wa/
+*.zip
+.next/
+cache/
+server/
+static/
+out/
+dist/
+*.zip
+.next/
+out/
+dist/
+cache/
+server/
+static/
+*.zip
+.next/
+out/
+dist/
+cache/
+server/
+static/
+kirim-wa/
+*.zip
+.next/
+out/
+dist/
+cache/
+server/
+static/
+*.zip
+kirim-wa/
+.next/
+out/
+dist/
+cache/
+server/
+static/
+*.zip
+kirim-wa/
+.next/
+out/
+dist/
+cache/
+server/
+static/

@@ -1,0 +1,177 @@
+
+// ============================================
+// 📁 backend/src/services/notificationService.js
+// ACTUALIZACIÓN: Agregar filtros adicionales
+// ============================================
+
+const fs = require('fs');
+const prisma = require('../models/prismaClient');
+const { postJson } = require('../utils/httpClient');
+const Joi = require('joi');
+
+const BASE = process.env.WHATSAPP_API_URL || 'http://localhost:3005';
+const API_KEY = process.env.WHATSAPP_API_KEY || '22c746590447e7311801c22c4d53736d569843ebf6da3cf8498354399fe2f2e2';
+
+if (!API_KEY) {
+  console.error('⚠️  WHATSAPP_API_KEY no está configurado en .env');
+} else {
+  console.log('✅ WHATSAPP_API_KEY cargado correctamente');
+}
+
+const getNotificationsSchema = Joi.object({
+  customerId: Joi.string().uuid().optional(),
+  from: Joi.date().iso().optional(),
+  to: Joi.date().iso().optional(),
+  status: Joi.string().valid('PENDING', 'SENT', 'DELIVERED', 'FAILED', 'READ').optional(),
+  channel: Joi.string().valid('SMS', 'WHATSAPP', 'EMAIL', 'PUSH', 'VOICE').optional(),
+});
+
+const sendPaymentReminderSchema = Joi.object({
+  customerId: Joi.string().uuid().required(),
+  message: Joi.string().required(),
+  invoiceId: Joi.string().uuid().optional(),
+});
+
+async function getCustomerPhone(customerId) {
+  const c = await prisma.customer.findUnique({ 
+    where: { id: customerId }, 
+    select: { phone: true } 
+  });
+  
+  if (!c?.phone) throw new Error('Cliente sin teléfono registrado');
+  
+  const cleaned = c.phone.replace(/[^\d]/g, '');
+  if (cleaned.length === 9) return `51${cleaned}`;
+  if (cleaned.length === 11 && cleaned.startsWith('51')) return cleaned;
+  
+  throw new Error('Número debe tener 9 dígitos (sin prefijo) o 11 con prefijo 51');
+}
+
+async function getNotifications({ customerId, from, to, status, channel }) {
+  const { error } = getNotificationsSchema.validate({ 
+    customerId, 
+    from, 
+    to, 
+    status, 
+    channel 
+  });
+  if (error) throw new Error(error.details[0].message);
+
+  const where = {};
+  if (customerId) where.customerId = customerId;
+  if (status) where.status = status;
+  if (channel) where.channel = channel;
+  
+  if (from || to) {
+    where.sentAt = {};
+    if (from) where.sentAt.gte = new Date(from);
+    if (to) where.sentAt.lte = new Date(to);
+  }
+
+  return prisma.messageLog.findMany({
+    where,
+    include: {
+      customer: { select: { name: true, phone: true } },
+      invoice: { select: { invoiceNumber: true, total: true, status: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+async function sendPaymentReminder(customerId, message, invoiceId) {
+  const { error } = sendPaymentReminderSchema.validate({ 
+    customerId, 
+    message, 
+    invoiceId 
+  });
+  if (error) throw new Error(error.details[0].message);
+
+  const phone = await getCustomerPhone(customerId);
+  const url = `${BASE}/api/send`;
+  
+  console.log(`📤 Enviando mensaje de recordatorio a ${phone}...`);
+  
+  try {
+    await postJson(url, { 
+      to: phone, 
+      message: message 
+    }, {
+      'X-API-Key': API_KEY,
+      'Content-Type': 'application/json'
+    });
+
+    // Registrar como SENT
+    const notification = await prisma.messageLog.create({
+      data: {
+        customerId,
+        invoiceId,
+        channel: 'WHATSAPP',
+        messageType: 'PAYMENT_REMINDER',
+        content: message,
+        status: 'SENT',
+        sentAt: new Date(),
+        phoneNumber: phone,
+      },
+      include: {
+        customer: { select: { name: true } },
+        invoice: { select: { invoiceNumber: true } },
+      },
+    });
+
+    console.log(`✅ Mensaje enviado y registrado (ID: ${notification.id})`);
+    return notification;
+  } catch (error) {
+    // Registrar como FAILED
+    console.error(`❌ Error al enviar a ${phone}:`, error.message);
+    
+    const notification = await prisma.messageLog.create({
+      data: {
+        customerId,
+        invoiceId,
+        channel: 'WHATSAPP',
+        messageType: 'PAYMENT_REMINDER',
+        content: message,
+        status: 'FAILED',
+        errorMessage: error.message,
+        phoneNumber: phone,
+      },
+      include: {
+        customer: { select: { name: true } },
+        invoice: { select: { invoiceNumber: true } },
+      },
+    });
+
+    throw new Error(`Error al enviar notificación: ${error.message}`);
+  }
+}
+
+async function sendWhatsAppWithDocument(customerId, message, filePath) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error('Archivo PDF no encontrado para enviar');
+  }
+  
+  const phone = await getCustomerPhone(customerId);
+  const url = `${BASE}/api/send-pdf`;
+  
+  console.log(`📤 Enviando PDF a ${phone}...`);
+  console.log(`📄 Archivo: ${filePath}`);
+  console.log(`💬 Mensaje: ${message}`);
+  
+  const response = await postJson(url, {
+    to: phone,
+    path: filePath,
+    message: message,
+  }, {
+    'X-API-Key': API_KEY,
+    'Content-Type': 'application/json'
+  });
+  
+  console.log(`✅ PDF enviado correctamente`);
+  return response;
+}
+
+module.exports = {
+  getNotifications,
+  sendPaymentReminder,
+  sendWhatsAppWithDocument,
+};

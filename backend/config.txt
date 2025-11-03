@@ -1,0 +1,62 @@
+GRANT ALL PRIVILEGES ON SCHEMA public TO gestion_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO gestion_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO gestion_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO gestion_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO gestion_user;
+
+-- Si Prisma va a crear enums y objetos personalizados
+GRANT CREATE ON SCHEMA public TO gestion_user;
+
+
+luego : -- =====================================================
+-- CREAR SECUENCIAS POSTGRESQL PARA NÚMEROS AUTOMÁTICOS
+-- Ejecutar ANTES de prisma db push
+-- =====================================================
+
+-- Conecta a tu base de datos:
+-- psql -U tu_usuario -d gestion_servicios
+
+-- 1. Crear secuencias
+CREATE SEQUENCE IF NOT EXISTS invoice_seq 
+    START WITH 1 
+    INCREMENT BY 1 
+    MINVALUE 1 
+    MAXVALUE 999999 
+    CACHE 1;
+
+CREATE SEQUENCE IF NOT EXISTS payment_seq 
+    START WITH 1 
+    INCREMENT BY 1 
+    MINVALUE 1 
+    MAXVALUE 999999 
+    CACHE 1;
+
+CREATE SEQUENCE IF NOT EXISTS receipt_seq 
+    START WITH 1 
+    INCREMENT BY 1 
+    MINVALUE 1 
+    MAXVALUE 999999 
+    CACHE 1;
+
+CREATE SEQUENCE IF NOT EXISTS contract_seq 
+    START WITH 1 
+    INCREMENT BY 1 
+    MINVALUE 1 
+    MAXVALUE 999999 
+    CACHE 1;
+
+-- 2. Verificar que se crearon correctamente
+SELECT schemaname, sequencename, start_value, increment_by, last_value 
+FROM pg_sequences 
+WHERE sequencename IN ('invoice_seq', 'payment_seq', 'receipt_seq', 'contract_seq');
+
+-- 3. Probar las secuencias
+SELECT 
+    concat('INV-', to_char(nextval('invoice_seq'),'FM000000')) as invoice_test,
+    concat('PAY-', to_char(nextval('payment_seq'),'FM000000')) as payment_test,
+    concat('REC-', to_char(nextval('receipt_seq'),'FM000000')) as receipt_test,
+    concat('CTR-', to_char(nextval('contract_seq'),'FM000000')) as contract_test;
+
+-- Resultado esperado:
+-- invoice_test | payment_test | receipt_test | contract_test
+-- INV-000001   | PAY-000001   | REC-000001   | CTR-000001

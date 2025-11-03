@@ -1,0 +1,67 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Control ISP - MikroTik</title>
+	<style>
+		body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;margin:40px;}
+		.card{max-width:720px;margin:auto;border:1px solid #ddd;border-radius:12px;padding:24px;}
+		.row{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}
+		input,button,select{padding:10px;border:1px solid #ccc;border-radius:8px}
+		button{cursor:pointer;background:#0d6efd;color:#fff;border:0}
+		button.secondary{background:#6c757d}
+		.status{margin-top:12px;padding:10px;border-radius:8px}
+		.success{background:#d1e7dd;color:#0f5132}
+		.error{background:#f8d7da;color:#842029}
+		.small{color:#555;font-size:12px}
+	</style>
+</head>
+<body>
+	<div class="card">
+		<h2>Control de Clientes MikroTik</h2>
+		<p class="small">API local: <code>/api/*</code></p>
+
+		<h3>PPPoE</h3>
+		<div class="row">
+			<input id="pppUser" placeholder="Usuario PPPoE (ppp secret name)" />
+			<button onclick="accion('cortar','pppoe')">Cortar</button>
+			<button class="secondary" onclick="accion('restaurar','pppoe')">Restaurar</button>
+		</div>
+
+		<h3>DHCP</h3>
+		<div class="row">
+			<input id="dhcpMac" placeholder="MAC AA:BB:CC:DD:EE:FF" />
+			<button onclick="accion('cortar','dhcp')">Mover a POOL_CORTE</button>
+		</div>
+
+		<div id="msg"></div>
+	</div>
+
+	<script>
+	async function accion(tipo,servicio){
+		const $msg = document.getElementById('msg');
+		$msg.innerHTML = '';
+		try{
+			let url = '';
+			if(servicio==='pppoe'){
+				const user = document.getElementById('pppUser').value.trim();
+				if(!user) throw new Error('Usuario PPPoE requerido');
+				url = tipo==='cortar' ? `/api/cortar/pppoe/${encodeURIComponent(user)}` : `/api/restaurar/pppoe/${encodeURIComponent(user)}`;
+			}else if(servicio==='dhcp'){
+				const mac = document.getElementById('dhcpMac').value.trim();
+				if(!mac) throw new Error('MAC requerida');
+				url = `/api/cortar/dhcp/${encodeURIComponent(mac)}`;
+			}
+
+			const r = await fetch(url,{method:'POST'});
+			const data = await r.json();
+			if(!r.ok) throw new Error(data.error||'Error');
+			$msg.innerHTML = `<div class="status success">${data.message||'OK'}</div>`;
+		}catch(e){
+			$msg.innerHTML = `<div class="status error">${e.message}</div>`;
+		}
+	}
+	</script>
+</body>
+</html>

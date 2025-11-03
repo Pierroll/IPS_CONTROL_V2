@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Servicio Suspendido - IPS Control</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #2c3e50;
+        }
+
+        .container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            max-width: 900px;
+            width: 100%;
+            overflow: hidden;
+            border: 1px solid #e1e8ed;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-bottom: 4px solid #3498db;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .alert {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-left: 4px solid #dc3545;
+            border-radius: 4px;
+            padding: 25px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .alert-icon {
+            font-size: 2.5rem;
+            color: #dc3545;
+            margin-bottom: 15px;
+        }
+
+        .alert h2 {
+            color: #2c3e50;
+            font-size: 1.6rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .alert p {
+            color: #6c757d;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .payment-section {
+            background: white;
+            border: 1px solid #e1e8ed;
+            border-radius: 4px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .payment-section h3 {
+            color: #2c3e50;
+            font-size: 1.5rem;
+            margin-bottom: 25px;
+            text-align: center;
+            font-weight: 600;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .payment-methods {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .payment-method {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 20px;
+            transition: all 0.2s ease;
+        }
+
+        .payment-method:hover {
+            border-color: #3498db;
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.1);
+        }
+
+        .bank-logo {
+            width: 60px;
+            height: 60px;
+            background: white;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            padding: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .bank-logo img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .bank-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .account-number {
+            background: white;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 12px;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .account-number:hover {
+            background: #e9ecef;
+            border-color: #3498db;
+        }
+
+        .copy-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-top: 10px;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: #2980b9;
+        }
+
+        .instructions {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-left: 4px solid #3498db;
+            border-radius: 4px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .instructions h4 {
+            color: #2c3e50;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .instructions ol {
+            color: #6c757d;
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .contact-info {
+            background: #2c3e50;
+            color: white;
+            border-radius: 4px;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .contact-info h4 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .contact-info p {
+            font-size: 1rem;
+            margin-bottom: 8px;
+        }
+
+        .contact-info a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .contact-info a:hover {
+            text-decoration: underline;
+        }
+
+        .footer {
+            background: #34495e;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            font-size: 0.9rem;
+            border-top: 1px solid #4a5f7a;
+        }
+
+        .success-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            font-size: 0.9rem;
+        }
+
+        .success-message.show {
+            transform: translateX(0);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .payment-methods {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Servicio Suspendido</h1>
+            <p>Su conexión a internet ha sido temporalmente suspendida</p>
+        </div>
+
+        <div class="content">
+            <div class="alert">
+                <div class="alert-icon">⚠</div>
+                <h2>Pago Pendiente</h2>
+                <p>Su servicio de internet ha sido suspendido debido a pagos pendientes. Para reactivar su conexión, realice el pago correspondiente utilizando cualquiera de los métodos disponibles a continuación.</p>
+            </div>
+
+            <div class="payment-section">
+                <h3>Métodos de Pago Disponibles</h3>
+                <div class="payment-methods">
+                    <div class="payment-method">
+                        <div class="bank-logo">
+                            <img src="images/banco-nacion.png" alt="Banco de la Nación" />
+                        </div>
+                        <div class="bank-name">Banco de la Nación</div>
+                        <div class="account-number" onclick="copyToClipboard('04-582-008812')">
+                            04-582-008812
+                        </div>
+                        <button class="copy-btn" onclick="copyToClipboard('04-582-008812')">
+                            Copiar
+                        </button>
+                    </div>
+
+                    <div class="payment-method">
+                        <div class="bank-logo">
+                            <img src="images/caja-piura.png" alt="Caja Piura" />
+                        </div>
+                        <div class="bank-name">Caja Piura</div>
+                        <div class="account-number" onclick="copyToClipboard('210-01-2580749')">
+                            210-01-2580749
+                        </div>
+                        <button class="copy-btn" onclick="copyToClipboard('210-01-2580749')">
+                            Copiar
+                        </button>
+                    </div>
+
+                    <div class="payment-method">
+                        <div class="bank-logo">
+                            <img src="images/yape.png" alt="Yape" />
+                        </div>
+                        <div class="bank-name">Yape</div>
+                        <div class="account-number" onclick="copyToClipboard('942044821')">
+                            942044821
+                        </div>
+                        <button class="copy-btn" onclick="copyToClipboard('942044821')">
+                            Copiar
+                        </button>
+                    </div>
+
+                    <div class="payment-method">
+                        <div class="bank-logo">
+                            <img src="images/bcp.png" alt="BCP" />
+                        </div>
+                        <div class="bank-name">BCP</div>
+                        <div class="account-number" onclick="copyToClipboard('56091215165073')">
+                            56091215165073
+                        </div>
+                        <button class="copy-btn" onclick="copyToClipboard('56091215165073')">
+                            Copiar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="instructions">
+                <h4>Instrucciones para el Pago:</h4>
+                <ol>
+                    <li>Seleccione el método de pago de su preferencia</li>
+                    <li>Copie el número de cuenta haciendo clic en él</li>
+                    <li>Realice la transferencia por el monto correspondiente</li>
+                    <li>Guarde el comprobante de pago</li>
+                    <li>Contacte a soporte técnico para reactivar el servicio</li>
+                </ol>
+            </div>
+
+            <div class="contact-info">
+                <h4>Contacto y Soporte</h4>
+                <p>Para reactivar su servicio después del pago:</p>
+                <p>WhatsApp: <a href="https://wa.me/51942044821">+51 942 044 821</a></p>
+                <p>Email: <a href="mailto:soporte@ipscontrol.com">soporte@ipscontrol.com</a></p>
+                <p>Horario de atención: Lunes a Viernes 8:00 AM - 6:00 PM</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>© 2024 IPS Control - Sistema de Gestión de Internet</p>
+            <p>Titular de cuenta: <strong>BRUNO RUFFNER HASSINGER</strong></p>
+        </div>
+    </div>
+
+    <div class="success-message" id="successMessage">
+        Número copiado al portapapeles
+    </div>
+
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                showSuccessMessage();
+            }, function(err) {
+                // Fallback para navegadores que no soportan clipboard API
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showSuccessMessage();
+            });
+        }
+
+        function showSuccessMessage() {
+            const message = document.getElementById('successMessage');
+            message.classList.add('show');
+            setTimeout(() => {
+                message.classList.remove('show');
+            }, 3000);
+        }
+
+        // Efecto de entrada suave
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.querySelector('.container');
+            container.style.opacity = '0';
+            container.style.transform = 'translateY(50px)';
+            
+            setTimeout(() => {
+                container.style.transition = 'all 0.8s ease';
+                container.style.opacity = '1';
+                container.style.transform = 'translateY(0)';
+            }, 100);
+        });
+    </script>
+</body>
+</html>
