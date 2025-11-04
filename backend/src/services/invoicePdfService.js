@@ -23,8 +23,9 @@ async function generateInvoicePdf(invoiceId) {
   const customerName = invoice.customer?.name || 'SinNombre';
   const safeCustomerName = customerName.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g, '').trim();
 
-  // El nombre del archivo sigue usando el mes real (no forzado a "octubre")
-  const periodMonth = dayjs(invoice.periodStart).locale('es').format('MMMM_YYYY');
+  // 🔧 FORZAR "octubre" TAMBIÉN EN EL NOMBRE DEL ARCHIVO
+  // (antes: dayjs(invoice.periodStart).locale('es').format('MMMM_YYYY'))
+  const periodMonth = 'octubre';
   const fileName = `Factura_${invoice.invoiceNumber}_${periodMonth}.pdf`;
 
   const outDir = path.join(process.cwd(), 'uploads', 'receipts', safeCustomerName);
@@ -273,67 +274,4 @@ async function generateInvoicePdf(invoiceId) {
   const summaryY = yPos - 8;
   const summaryHeight = 100;
 
-  doc.roundedRect(summaryOuterX, summaryY, summaryOuterWidth, summaryHeight, 3)
-    .fill(COLORS.totalBg);
-
-  doc.fontSize(8.5).fillColor(COLORS.text).font('Helvetica');
-
-  let lineY = yPos;
-  doc.text('Subtotal:', summaryX, lineY, { width: 70, align: 'left' });
-  doc.text(currency(invoice.subtotal), summaryX + 70, lineY, { width: 100, align: 'right' });
-
-  lineY += 16;
-
-  doc.text('IGV (18%):', summaryX, lineY, { width: 70, align: 'left' });
-  doc.text(currency(invoice.tax), summaryX + 70, lineY, { width: 100, align: 'right' });
-
-  lineY += 16;
-
-  doc.text('Descuento:', summaryX, lineY, { width: 70, align: 'left' });
-  doc.text(currency(invoice.discount), summaryX + 70, lineY, { width: 100, align: 'right' });
-
-  lineY += 22;
-
-  doc.moveTo(summaryX, lineY - 4)
-    .lineTo(summaryX + summaryWidth, lineY - 4)
-    .strokeColor(COLORS.primary)
-    .lineWidth(2)
-    .stroke();
-
-  doc.fontSize(12).fillColor(COLORS.primary).font('Helvetica-Bold');
-  doc.text('TOTAL:', summaryX, lineY, { width: 70, align: 'left' });
-  doc.text(currency(invoice.total), summaryX + 70, lineY, { width: 100, align: 'right' });
-
-  // ========== FOOTER ==========
-  const footerY = doc.page.height - 100;
-
-  doc.moveTo(50, footerY)
-     .lineTo(doc.page.width - 50, footerY)
-     .strokeColor(COLORS.border)
-     .lineWidth(1)
-     .stroke();
-
-  doc.fontSize(8)
-     .fillColor(COLORS.lightText)
-     .font('Helvetica')
-     .text(
-       'NOTA: Este comprobante interno se emite al registrar el pago. No constituye documento tributario válido.',
-       50,
-       footerY + 15,
-       { width: pageWidth, align: 'center', lineBreak: false }
-     );
-
-  doc.fontSize(7)
-     .text(
-       'Gracias por confiar en BRESS-LAN para sus servicios de Internet.',
-       50,
-       footerY + 30,
-       { width: pageWidth, align: 'center', lineBreak: false }
-     );
-
-  doc.end();
-  await new Promise((resolve) => stream.on('finish', resolve));
-  return { filePath, fileName };
-}
-
-module.exports = { generateInvoicePdf };
+  doc.roundedRect(summaryOuterX, summaryY, summaryOuterWid
