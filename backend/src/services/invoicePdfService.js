@@ -10,6 +10,18 @@ require('dayjs/locale/es');
 const currency = (n) =>
   new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(Number(n || 0));
 
+/**
+ * Fuerza a mostrar el mes como "octubre" en el texto de fechas,
+ * respetando día (2 dígitos) y año, y usando la TZ de Lima.
+ * Ej: "05 de octubre de 2025"
+ */
+function formatAsOctober(dateInput) {
+  const d = new Date(dateInput);
+  const dayStr = d.toLocaleString('es-PE', { timeZone: LIMA_TZ, day: '2-digit' });
+  const yearStr = d.toLocaleString('es-PE', { timeZone: LIMA_TZ, year: 'numeric' });
+  return `${dayStr} de octubre de ${yearStr}`;
+}
+
 async function generateInvoicePdf(invoiceId) {
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
@@ -19,6 +31,8 @@ async function generateInvoicePdf(invoiceId) {
 
   const customerName = invoice.customer?.name || 'SinNombre';
   const safeCustomerName = customerName.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g, '').trim();
+
+  // 👇 El nombre de archivo permanece basado en el mes real del periodo (NO se fuerza octubre)
   const periodMonth = dayjs(invoice.periodStart).locale('es').format('MMMM_YYYY');
   const fileName = `Factura_${invoice.invoiceNumber}_${periodMonth}.pdf`;
 
@@ -29,14 +43,14 @@ async function generateInvoicePdf(invoiceId) {
 
   // ========== DISEÑO PROFESIONAL EMPRESARIAL ==========
   const COLORS = {
-    primary: '#1e40af',      // Azul profesional
-    secondary: '#f59e0b',    // Naranja/Ámbar para acentos
-    text: '#1f2937',         // Gris oscuro texto
-    lightText: '#6b7280',    // Gris medio
-    border: '#d1d5db',       // Gris claro bordes
-    headerBg: '#eff6ff',     // Azul muy claro para fondo
-    totalBg: '#f3f4f6',      // Gris claro para totales
-    success: '#10b981'       // Verde para estado
+    primary: '#1e40af',
+    secondary: '#f59e0b',
+    text: '#1f2937',
+    lightText: '#6b7280',
+    border: '#d1d5db',
+    headerBg: '#eff6ff',
+    totalBg: '#f3f4f6',
+    success: '#10b981'
   };
 
   const logoPath = path.join(process.cwd(), 'src', 'utils', 'LOGO-BRESS.PNG');
@@ -50,19 +64,16 @@ async function generateInvoicePdf(invoiceId) {
   const stream = fs.createWriteStream(filePath);
   doc.pipe(stream);
 
-  // ========== ENCABEZADO CON DISEÑO EMPRESARIAL ==========
-  const pageWidth = doc.page.width - 100; // (ancho de página - márgenes izq/der)
+  // ========== ENCABEZADO ==========
+  const pageWidth = doc.page.width - 100;
   let yPos = 50;
 
-  // Rectángulo superior con color de marca (altura ajustada)
   doc.rect(50, yPos, pageWidth, 100).fill(COLORS.headerBg);
 
-  // Logo empresa (lado izquierdo)
   if (fs.existsSync(logoPath)) {
     doc.image(logoPath, 65, yPos + 10, { width: 70, height: 70 });
   }
 
-  // Información de la empresa (centro-izquierda)
   doc.fontSize(22)
      .fillColor(COLORS.primary)
      .font('Helvetica-Bold')
@@ -77,7 +88,6 @@ async function generateInvoicePdf(invoiceId) {
      .text('Tel: 987 121 219 | 942 044 821', 155, yPos + 74)
      .text('ruffnerbruno@gmail.com', 155, yPos + 86);
 
-  // Recuadro FACTURA (lado derecho)
   const boxRight = doc.page.width - 210;
   const boxWidth = 160;
   doc.rect(boxRight, yPos + 10, boxWidth, 85)
@@ -85,7 +95,6 @@ async function generateInvoicePdf(invoiceId) {
      .strokeColor(COLORS.primary)
      .stroke();
 
-  // COMPROBANTE
   doc.fontSize(13)
      .fillColor(COLORS.primary)
      .font('Helvetica-Bold')
@@ -95,7 +104,6 @@ async function generateInvoicePdf(invoiceId) {
        lineBreak: false
      });
   
-  // Número de serie
   doc.fontSize(12)
      .fillColor(COLORS.text)
      .font('Helvetica-Bold')
@@ -105,12 +113,8 @@ async function generateInvoicePdf(invoiceId) {
        lineBreak: false
      });
 
-  const issueDate = new Date(invoice.issueDate).toLocaleDateString('es-PE', { 
-    timeZone: LIMA_TZ,
-    day: '2-digit',
-    month: '2-digit', 
-    year: 'numeric'
-  });
+  // 🔧 FECHA DE EMISIÓN forzada a "octubre"
+  const issueDateText = formatAsOctober(invoice.issueDate);
 
   doc.fontSize(7.5)
      .fillColor(COLORS.lightText)
@@ -120,11 +124,11 @@ async function generateInvoicePdf(invoiceId) {
   doc.fontSize(8.5)
      .fillColor(COLORS.text)
      .font('Helvetica-Bold')
-     .text(issueDate, boxRight + 10, yPos + 74, { width: boxWidth - 20, align: 'center', lineBreak: false });
+     .text(issueDateText, boxRight + 10, yPos + 74, { width: boxWidth - 20, align: 'center', lineBreak: false });
 
   yPos += 120;
 
-  // ========== INFORMACIÓN DEL CLIENTE ==========
+  // ========== INFO CLIENTE ==========
   doc.moveTo(50, yPos)
      .lineTo(doc.page.width - 50, yPos)
      .strokeColor(COLORS.border)
@@ -133,7 +137,6 @@ async function generateInvoicePdf(invoiceId) {
 
   yPos += 20;
 
-  // Título "CLIENTE"
   doc.fontSize(10)
      .fillColor(COLORS.primary)
      .font('Helvetica-Bold')
@@ -143,7 +146,6 @@ async function generateInvoicePdf(invoiceId) {
 
   const clientStartY = yPos;
 
-  // Datos del cliente (2 columnas)
   doc.fontSize(8.5)
      .fillColor(COLORS.text)
      .font('Helvetica-Bold')
@@ -161,7 +163,6 @@ async function generateInvoicePdf(invoiceId) {
     yPos += 14;
   }
 
-  // Columna derecha
   let rightColY = clientStartY;
   
   if (invoice.customer?.phone) {
@@ -190,17 +191,18 @@ async function generateInvoicePdf(invoiceId) {
 
   yPos += 16;
 
-  const startDate = new Date(invoice.periodStart).toLocaleDateString('es-PE');
-  const endDate = new Date(invoice.periodEnd).toLocaleDateString('es-PE');
+  // 🔧 Periodo mostrado con "octubre" forzado
+  const startDateText = formatAsOctober(invoice.periodStart);
+  const endDateText = formatAsOctober(invoice.periodEnd);
 
   doc.fontSize(8.5)
      .fillColor(COLORS.text)
      .font('Helvetica')
-     .text(`Del ${startDate} al ${endDate}`, 50, yPos);
+     .text(`Del ${startDateText} al ${endDateText}`, 50, yPos);
 
   yPos += 22;
 
-  // ========== TABLA DE CONCEPTOS ==========
+  // ========== TABLA DETALLE ==========
   doc.fontSize(10)
      .fillColor(COLORS.primary)
      .font('Helvetica-Bold')
@@ -208,19 +210,16 @@ async function generateInvoicePdf(invoiceId) {
 
   yPos += 16;
 
-  // Encabezado de tabla con fondo
   const tableTop = yPos;
   const rowHeight = 22;
 
-  // >>> CÁLCULO DINÁMICO DE ANCHOS PARA EVITAR DESBORDE <<<
   const colWidths = {
     desc: 280,
     qty: 65,
     unit: 85,
-    total: pageWidth - (280 + 65 + 85), // ocupa exactamente el espacio disponible
+    total: pageWidth - (280 + 65 + 85),
   };
 
-  // Asegura un mínimo razonable para TOTAL
   if (colWidths.total < 60) {
     const deficit = 60 - colWidths.total;
     colWidths.desc = Math.max(200, colWidths.desc - deficit);
@@ -234,11 +233,9 @@ async function generateInvoicePdf(invoiceId) {
     total: 50 + colWidths.desc + colWidths.qty + colWidths.unit
   };
 
-  // Fondo de encabezado
   doc.rect(50, tableTop, pageWidth, rowHeight)
      .fill(COLORS.primary);
 
-  // Texto del encabezado
   doc.fontSize(8.5)
      .fillColor('#ffffff')
      .font('Helvetica-Bold')
@@ -249,11 +246,9 @@ async function generateInvoicePdf(invoiceId) {
 
   yPos = tableTop + rowHeight;
 
-  // Items de la factura
   doc.fillColor(COLORS.text).font('Helvetica');
   
   invoice.items.forEach((item, index) => {
-    // Solo agregar nueva página si realmente no hay espacio
     if (yPos > 720) {
       doc.addPage();
       yPos = 50;
@@ -273,7 +268,6 @@ async function generateInvoicePdf(invoiceId) {
     yPos += rowHeight;
   });
 
-  // Línea final de tabla
   doc.moveTo(50, yPos)
      .lineTo(doc.page.width - 50, yPos)
      .strokeColor(COLORS.primary)
@@ -282,67 +276,57 @@ async function generateInvoicePdf(invoiceId) {
 
   yPos += 18;
 
-  // ========== RESUMEN DE TOTALES ==========
-const rightEdge = 50 + pageWidth;     // borde derecho de la tabla
-const summaryWidth = 170;             // contenido (70 + 100)
-const summaryPadding = 10;            // padding interno
-const summaryOuterWidth = summaryWidth + summaryPadding * 2;
+  // ========== TOTALES ==========
+  const rightEdge = 50 + pageWidth;
+  const summaryWidth = 170;
+  const summaryPadding = 10;
+  const summaryOuterWidth = summaryWidth + summaryPadding * 2;
 
-// caja externa alineada al borde derecho de la tabla
-const summaryOuterX = rightEdge - summaryOuterWidth;
-const summaryX = summaryOuterX + summaryPadding; // inicio del contenido
-const summaryY = yPos - 8;
-const summaryHeight = 100;
+  const summaryOuterX = rightEdge - summaryOuterWidth;
+  const summaryX = summaryOuterX + summaryPadding;
+  const summaryY = yPos - 8;
+  const summaryHeight = 100;
 
-// Fondo con bordes redondeados (no se sale del borde)
-doc.roundedRect(summaryOuterX, summaryY, summaryOuterWidth, summaryHeight, 3)
-  .fill(COLORS.totalBg);
+  doc.roundedRect(summaryOuterX, summaryY, summaryOuterWidth, summaryHeight, 3)
+    .fill(COLORS.totalBg);
 
-doc.fontSize(8.5).fillColor(COLORS.text).font('Helvetica');
+  doc.fontSize(8.5).fillColor(COLORS.text).font('Helvetica');
 
-// Subtotal
-let lineY = yPos;
-doc.text('Subtotal:', summaryX, lineY, { width: 70, align: 'left' });
-doc.text(currency(invoice.subtotal), summaryX + 70, lineY, { width: 100, align: 'right' });
+  let lineY = yPos;
+  doc.text('Subtotal:', summaryX, lineY, { width: 70, align: 'left' });
+  doc.text(currency(invoice.subtotal), summaryX + 70, lineY, { width: 100, align: 'right' });
 
-lineY += 16;
+  lineY += 16;
 
-// IGV
-doc.text('IGV (18%):', summaryX, lineY, { width: 70, align: 'left' });
-doc.text(currency(invoice.tax), summaryX + 70, lineY, { width: 100, align: 'right' });
+  doc.text('IGV (18%):', summaryX, lineY, { width: 70, align: 'left' });
+  doc.text(currency(invoice.tax), summaryX + 70, lineY, { width: 100, align: 'right' });
 
-lineY += 16;
+  lineY += 16;
 
-// Descuento
-doc.text('Descuento:', summaryX, lineY, { width: 70, align: 'left' });
-doc.text(currency(invoice.discount), summaryX + 70, lineY, { width: 100, align: 'right' });
+  doc.text('Descuento:', summaryX, lineY, { width: 70, align: 'left' });
+  doc.text(currency(invoice.discount), summaryX + 70, lineY, { width: 100, align: 'right' });
 
-lineY += 22;
+  lineY += 22;
 
-// Línea antes del total (dentro del recuadro)
-doc.moveTo(summaryX, lineY - 4)
-  .lineTo(summaryX + summaryWidth, lineY - 4)
-  .strokeColor(COLORS.primary)
-  .lineWidth(2)
-  .stroke();
+  doc.moveTo(summaryX, lineY - 4)
+    .lineTo(summaryX + summaryWidth, lineY - 4)
+    .strokeColor(COLORS.primary)
+    .lineWidth(2)
+    .stroke();
 
-// TOTAL GENERAL (alineado dentro del recuadro)
-doc.fontSize(12).fillColor(COLORS.primary).font('Helvetica-Bold');
-doc.text('TOTAL:', summaryX, lineY, { width: 70, align: 'left' });
-doc.text(currency(invoice.total), summaryX + 70, lineY, { width: 100, align: 'right' });
-
+  doc.fontSize(12).fillColor(COLORS.primary).font('Helvetica-Bold');
+  doc.text('TOTAL:', summaryX, lineY, { width: 70, align: 'left' });
+  doc.text(currency(invoice.total), summaryX + 70, lineY, { width: 100, align: 'right' });
 
   // ========== FOOTER ==========
   const footerY = doc.page.height - 100;
 
-  // Línea superior del footer
   doc.moveTo(50, footerY)
      .lineTo(doc.page.width - 50, footerY)
      .strokeColor(COLORS.border)
      .lineWidth(1)
      .stroke();
 
-  // Notas y términos
   doc.fontSize(8)
      .fillColor(COLORS.lightText)
      .font('Helvetica')
