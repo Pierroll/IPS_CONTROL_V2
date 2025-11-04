@@ -10,17 +10,8 @@ require('dayjs/locale/es');
 const currency = (n) =>
   new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(Number(n || 0));
 
-/**
- * Fuerza a mostrar el mes como "octubre" en el texto de fechas,
- * respetando día (2 dígitos) y año, y usando la TZ de Lima.
- * Ej: "05 de octubre de 2025"
- */
-function formatAsOctober(dateInput) {
-  const d = new Date(dateInput);
-  const dayStr = d.toLocaleString('es-PE', { timeZone: LIMA_TZ, day: '2-digit' });
-  const yearStr = d.toLocaleString('es-PE', { timeZone: LIMA_TZ, year: 'numeric' });
-  return `${dayStr} de octubre de ${yearStr}`;
-}
+// Texto fijo para las fechas visibles
+const MONTH_TEXT = 'octubre';
 
 async function generateInvoicePdf(invoiceId) {
   const invoice = await prisma.invoice.findUnique({
@@ -32,7 +23,7 @@ async function generateInvoicePdf(invoiceId) {
   const customerName = invoice.customer?.name || 'SinNombre';
   const safeCustomerName = customerName.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g, '').trim();
 
-  // 👇 El nombre de archivo permanece basado en el mes real del periodo (NO se fuerza octubre)
+  // El nombre del archivo sigue usando el mes real (no forzado a "octubre")
   const periodMonth = dayjs(invoice.periodStart).locale('es').format('MMMM_YYYY');
   const fileName = `Factura_${invoice.invoiceNumber}_${periodMonth}.pdf`;
 
@@ -113,9 +104,7 @@ async function generateInvoicePdf(invoiceId) {
        lineBreak: false
      });
 
-  // 🔧 FECHA DE EMISIÓN forzada a "octubre"
-  const issueDateText = formatAsOctober(invoice.issueDate);
-
+  // 🔧 FECHA DE EMISIÓN: mostrar solo "octubre"
   doc.fontSize(7.5)
      .fillColor(COLORS.lightText)
      .font('Helvetica')
@@ -124,7 +113,7 @@ async function generateInvoicePdf(invoiceId) {
   doc.fontSize(8.5)
      .fillColor(COLORS.text)
      .font('Helvetica-Bold')
-     .text(issueDateText, boxRight + 10, yPos + 74, { width: boxWidth - 20, align: 'center', lineBreak: false });
+     .text(MONTH_TEXT, boxRight + 10, yPos + 74, { width: boxWidth - 20, align: 'center', lineBreak: false });
 
   yPos += 120;
 
@@ -191,14 +180,11 @@ async function generateInvoicePdf(invoiceId) {
 
   yPos += 16;
 
-  // 🔧 Periodo mostrado con "octubre" forzado
-  const startDateText = formatAsOctober(invoice.periodStart);
-  const endDateText = formatAsOctober(invoice.periodEnd);
-
+  // 🔧 Mostrar solo "octubre" (sin días/fechas)
   doc.fontSize(8.5)
      .fillColor(COLORS.text)
      .font('Helvetica')
-     .text(`Del ${startDateText} al ${endDateText}`, 50, yPos);
+     .text(MONTH_TEXT, 50, yPos);
 
   yPos += 22;
 
