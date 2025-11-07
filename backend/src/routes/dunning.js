@@ -19,4 +19,7 @@ router.get('/notifications', authorizeRole(['ADMIN', 'MANAGER', 'SELLER', 'SUPPO
 // ✅ Reintentar una notificación fallida
 router.post('/notifications/:id/retry', authorizeRole(['ADMIN', 'MANAGER', 'SELLER']), dunningCtrl.retryNotification);
 
+// ✅ Cortar servicio a todos los clientes morosos
+router.post('/cut-all-overdue', authorizeRole(['ADMIN', 'MANAGER']), dunningCtrl.cutAllOverdueCustomers);
+
 module.exports = router;

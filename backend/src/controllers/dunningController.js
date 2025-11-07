@@ -143,4 +143,29 @@ Att. Área de Cobranzas.`
   );
 }
 
-module.exports = { previewToday, sendManualReminder, getNotifications, retryNotification };
+// ✅ Nuevo: Cortar servicio a todos los clientes morosos
+const cutAllOverdueCustomers = async (req, res) => {
+  try {
+    const { cutProfile } = req.body || {};
+    const profile = cutProfile || 'CORTE MOROSO';
+    
+    console.log(`🔪 Iniciando corte masivo de clientes morosos...`);
+    
+    const pppoeService = require('../services/pppoeService');
+    const result = await pppoeService.cutAllOverdueCustomers(profile);
+    
+    res.json({
+      success: true,
+      message: `Corte masivo completado: ${result.cut} clientes cortados, ${result.failed} fallidos`,
+      data: result
+    });
+  } catch (err) {
+    console.error('❌ Error en cutAllOverdueCustomers:', err);
+    res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
+  }
+};
+
+module.exports = { previewToday, sendManualReminder, getNotifications, retryNotification, cutAllOverdueCustomers };

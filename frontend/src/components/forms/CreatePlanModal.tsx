@@ -38,19 +38,82 @@ export default function CreatePlanModal({ onPlanCreated }: CreatePlanModalProps)
     mikrotikProfileName: "",
   })
   const [mikrotikProfiles, setMikrotikProfiles] = useState<any[]>([])
+  const [routers, setRouters] = useState<any[]>([])
+  const [selectedRouterId, setSelectedRouterId] = useState<string>("")
+  const [loadingProfiles, setLoadingProfiles] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Cargar routers cuando se abre el modal
   useEffect(() => {
     if (open) {
       const token = localStorage.getItem("access_token") || ""
-      apiFacade.getMikrotikProfiles(token)
-        .then(response => setMikrotikProfiles(response.data))
+      
+      // Cargar lista de routers
+      apiFacade.getRouters(token)
+        .then(routersData => {
+          setRouters(routersData)
+          // Seleccionar el primer router por defecto
+          if (routersData.length > 0 && !selectedRouterId) {
+            setSelectedRouterId(routersData[0].id)
+          }
+        })
         .catch(err => {
-          setError("Error al cargar perfiles de MikroTik: " + (err as Error).message)
+          console.error("Error al cargar routers:", err)
+          setError("Error al cargar routers: " + (err as Error).message)
         })
     }
   }, [open])
+
+  // Cargar perfiles cuando se selecciona un router
+  useEffect(() => {
+    if (!open) return
+    
+    if (selectedRouterId) {
+      loadProfilesFromRouter(selectedRouterId)
+    } else if (routers.length > 0) {
+      // Si no hay router seleccionado pero hay routers disponibles, seleccionar y cargar del primero
+      const firstRouterId = routers[0].id
+      setSelectedRouterId(firstRouterId)
+      loadProfilesFromRouter(firstRouterId)
+    } else {
+      // Si no hay routers, intentar cargar del primer router activo (método anterior como fallback)
+      const token = localStorage.getItem("access_token") || ""
+      setLoadingProfiles(true)
+      apiFacade.getMikrotikProfiles(token)
+        .then(response => {
+          setMikrotikProfiles(response.data || [])
+          setLoadingProfiles(false)
+        })
+        .catch(err => {
+          console.error("Error al cargar perfiles:", err)
+          setError("Error al cargar perfiles de MikroTik: " + (err as Error).message)
+          setMikrotikProfiles([])
+          setLoadingProfiles(false)
+        })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectedRouterId, routers.length])
+
+  const loadProfilesFromRouter = async (routerId: string) => {
+    if (!routerId) return
+    
+    setLoadingProfiles(true)
+    setError(null)
+    
+    try {
+      const token = localStorage.getItem("access_token") || ""
+      const response = await apiFacade.getMikrotikProfilesFromRouter(routerId)
+      setMikrotikProfiles(response.data || [])
+      console.log(`✅ Cargados ${response.data?.length || 0} perfiles del router`)
+    } catch (err: any) {
+      console.error("Error al cargar perfiles del router:", err)
+      setError("Error al cargar perfiles del router: " + (err as Error).message)
+      setMikrotikProfiles([])
+    } finally {
+      setLoadingProfiles(false)
+    }
+  }
 
   const validateForm = () => {
     if (!formData.name || formData.name.length < 3) {
@@ -161,23 +224,61 @@ export default function CreatePlanModal({ onPlanCreated }: CreatePlanModalProps)
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="mikrotikProfileName">Perfil de MikroTik</Label>
+                <Label htmlFor="routerSelect">Router MikroTik</Label>
                 <Select
-                  value={formData.mikrotikProfileName || ""}
-                  onValueChange={(value) => setFormData({ ...formData, mikrotikProfileName: value })}
-                  disabled={loading}
+                  value={selectedRouterId}
+                  onValueChange={(value) => {
+                    setSelectedRouterId(value)
+                    loadProfilesFromRouter(value)
+                  }}
+                  disabled={loading || loadingProfiles || routers.length === 0}
                 >
-                  <SelectTrigger id="mikrotikProfileName">
-                    <SelectValue placeholder="Selecciona un perfil de MikroTik" />
+                  <SelectTrigger id="routerSelect">
+                    <SelectValue placeholder={routers.length === 0 ? "No hay routers disponibles" : "Selecciona un router"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {mikrotikProfiles.map((profile) => (
-                      <SelectItem key={profile.name} value={profile.name}>
-                        {profile.name}
+                    {routers.map((router) => (
+                      <SelectItem key={router.id} value={router.id}>
+                        {router.name} ({router.ipAddress})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {loadingProfiles && (
+                  <p className="text-xs text-muted-foreground">Cargando perfiles del router...</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mikrotikProfileName">Perfil de MikroTik</Label>
+                <Select
+                  value={formData.mikrotikProfileName || ""}
+                  onValueChange={(value) => setFormData({ ...formData, mikrotikProfileName: value })}
+                  disabled={loading || loadingProfiles || mikrotikProfiles.length === 0 || !selectedRouterId}
+                >
+                  <SelectTrigger id="mikrotikProfileName">
+                    <SelectValue placeholder={
+                      !selectedRouterId 
+                        ? "Primero selecciona un router" 
+                        : loadingProfiles 
+                        ? "Cargando perfiles..." 
+                        : mikrotikProfiles.length === 0 
+                        ? "No hay perfiles disponibles" 
+                        : "Selecciona un perfil de MikroTik"
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {mikrotikProfiles.map((profile) => (
+                      <SelectItem key={profile.name} value={profile.name}>
+                        {profile.name} {profile['rate-limit'] ? `(${profile['rate-limit']})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {mikrotikProfiles.length === 0 && selectedRouterId && !loadingProfiles && (
+                  <p className="text-xs text-muted-foreground">
+                    No se encontraron perfiles en este router. Asegúrate de que el router tenga perfiles PPPoE configurados.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Categoría</Label>

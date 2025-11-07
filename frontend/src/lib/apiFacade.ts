@@ -16,23 +16,98 @@ const handleResponse = async (response: Response, originalRequest?: () => Promis
   console.log(`🔍 handleResponse - Status: ${response.status}, URL: ${response.url}`);
   
   if (!response.ok) {
-    // Si es error 403 (token inválido) y tenemos una función para reintentar
-    if (response.status === 403 && originalRequest) {
+    // Si es error 401 o 403 (token inválido/expirado), intentar refrescar
+    if ((response.status === 401 || response.status === 403) && originalRequest) {
       try {
-        console.log("🔄 Token expirado, intentando refresh...");
-        await refreshToken();
+        console.log("🔄 Token inválido/expirado, intentando refresh...");
+        const newToken = await refreshToken();
         console.log("✅ Token refrescado, reintentando petición...");
         const newResponse = await originalRequest();
         return await handleResponse(newResponse); // Procesar la nueva respuesta
       } catch (refreshError) {
         console.error("❌ Error al refrescar token:", refreshError);
-        throw refreshError;
+        // Si el refresh falla, limpiar tokens y redirigir al login
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user_data");
+        if (typeof window !== 'undefined') {
+          window.location.href = "/auth";
+        }
+        throw new Error("Sesión expirada. Por favor, inicia sesión nuevamente.");
       }
     }
     
-    const errorData = await response.json().catch(() => ({}));
+    // Leer el cuerpo de la respuesta una sola vez
+    let errorData = {};
+    let errorText = '';
+    try {
+      errorText = await response.text();
+      if (errorText) {
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (parseError) {
+          // Si no es JSON válido, usar el texto como mensaje
+          errorData = { error: errorText || `Error ${response.status}` };
+        }
+      }
+    } catch (e) {
+      // Si no se puede leer el texto, usar mensaje genérico
+      errorData = { error: `Error ${response.status}` };
+    }
+    
+    // Si es 401 o 403 sin función de reintento, intentar refrescar token
+    if ((response.status === 401 || response.status === 403) && !originalRequest) {
+      const errorMsg = errorData.error || errorData.message || '';
+      // Si el error es de token inválido, intentar refrescar una vez
+      if (errorMsg.toLowerCase().includes('token') || errorMsg.toLowerCase().includes('inválido') || errorMsg.toLowerCase().includes('denegado')) {
+        try {
+          console.log("🔄 Intentando refrescar token automáticamente...");
+          await refreshToken();
+          // Si el refresh funciona, lanzar error para que el componente maneje el reintento
+          throw new Error("Token actualizado. Por favor, recarga la página o intenta nuevamente.");
+        } catch (refreshError: any) {
+          // Si falla el refresh, limpiar y redirigir
+          console.error("❌ No se pudo refrescar el token:", refreshError);
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          localStorage.removeItem("user_data");
+          if (typeof window !== 'undefined') {
+            window.location.href = "/auth";
+          }
+          throw new Error("Sesión expirada. Por favor, inicia sesión nuevamente.");
+        }
+      }
+    }
+    
     console.error(`❌ Error en ${response.url}:`, errorData, response.status);
-    const error = new Error(errorData.error || errorData.message || "API request failed") as ApiError;
+    
+    // Construir mensaje de error más descriptivo
+    let errorMessage = errorData.error || errorData.message;
+    
+    if (!errorMessage) {
+      // Si no hay mensaje, crear uno basado en el código de estado
+      switch (response.status) {
+        case 400:
+          errorMessage = 'Solicitud inválida. Verifica los datos enviados.';
+          break;
+        case 401:
+          errorMessage = 'No autorizado. Por favor, inicia sesión nuevamente.';
+          break;
+        case 403:
+          errorMessage = 'Acceso denegado. No tienes permisos para esta acción.';
+          break;
+        case 404:
+          errorMessage = 'Recurso no encontrado.';
+          break;
+        case 500:
+          errorMessage = 'Error del servidor. Por favor, intenta más tarde.';
+          break;
+        default:
+          errorMessage = `Error ${response.status}: ${response.statusText || 'Error desconocido'}`;
+      }
+    }
+    
+    const error = new Error(errorMessage) as ApiError;
     error.status = response.status;
     throw error;
   }
@@ -78,18 +153,33 @@ const refreshToken = async () => {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api";
 
+// Log para depuración (solo en desarrollo)
+if (typeof window !== 'undefined') {
+  console.log("🌐 API_URL configurada:", API_URL);
+  console.log("🌐 NEXT_PUBLIC_API_URL desde env:", process.env.NEXT_PUBLIC_API_URL);
+}
+
 const apiFacade = {
   async login(email: string, password: string) {
-    const response = await fetch(`${API_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await handleResponse(response);
-    localStorage.setItem("access_token", data.accessToken);
-    localStorage.setItem("refresh_token", data.refreshToken);
-    localStorage.setItem("user_data", JSON.stringify(data.user));
-    return data;
+    try {
+      console.log("🔗 Intentando conectar a:", `${API_URL}/auth/login`);
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await handleResponse(response);
+      localStorage.setItem("access_token", data.accessToken);
+      localStorage.setItem("refresh_token", data.refreshToken);
+      localStorage.setItem("user_data", JSON.stringify(data.user));
+      return data;
+    } catch (error: any) {
+      console.error("❌ Error en login:", error);
+      if (error.message === "Failed to fetch" || error.name === "TypeError") {
+        throw new Error(`No se pudo conectar al servidor. Verifica que el backend esté corriendo en ${API_URL}`);
+      }
+      throw error;
+    }
   },
 
   async getUsers(role?: string): Promise<User[]> {
@@ -1083,14 +1173,63 @@ const apiFacade = {
     
     console.log('🔍 Fetching routers from:', url);
     
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const makeRequest = async (currentToken: string) => {
+      return fetch(url, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+      });
+    };
     
-    const result = await handleResponse(response);
-    console.log('✅ Routers response:', result);
-    
-    return Array.isArray(result) ? result : (result.data || []);
+    try {
+      const response = await makeRequest(token);
+      
+      // Si falla con 401/403, intentar refrescar y reintentar
+      if (response.status === 401 || response.status === 403) {
+        console.log("🔄 Token inválido, intentando refrescar...");
+        try {
+          const newToken = await refreshToken();
+          console.log("✅ Token refrescado, reintentando...");
+          const newResponse = await makeRequest(newToken);
+          const result = await handleResponse(newResponse);
+          
+          // El backend devuelve { success: true, data: [...] }
+          if (result && result.success && Array.isArray(result.data)) {
+            return result.data;
+          }
+          if (Array.isArray(result)) {
+            return result;
+          }
+          return result.data || [];
+        } catch (refreshError) {
+          console.error("❌ Error al refrescar token:", refreshError);
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          localStorage.removeItem("user_data");
+          if (typeof window !== 'undefined') {
+            window.location.href = "/auth";
+          }
+          throw new Error("Sesión expirada. Por favor, inicia sesión nuevamente.");
+        }
+      }
+      
+      const result = await handleResponse(response, () => makeRequest(token));
+      console.log('✅ Routers response:', result);
+      
+      // El backend devuelve { success: true, data: [...] }
+      if (result && result.success && Array.isArray(result.data)) {
+        return result.data;
+      }
+      
+      // Si viene directamente como array
+      if (Array.isArray(result)) {
+        return result;
+      }
+      
+      // Si viene con estructura diferente
+      return result.data || [];
+    } catch (error: any) {
+      console.error('❌ Error fetching routers:', error);
+      throw error;
+    }
   },
   
   async getRouterById(token: string, id: string): Promise<Router> {
@@ -1185,6 +1324,8 @@ const apiFacade = {
     password: string;
     useTls: boolean;
   }) {
+    console.log('🔍 Enviando datos de test-connection:', { ...data, password: '***' });
+    
     const response = await fetch(`${API_URL}/routers/test-connection`, {
       method: 'POST',
       headers: {
@@ -1193,6 +1334,21 @@ const apiFacade = {
       },
       body: JSON.stringify(data)
     });
+    
+    console.log('📥 Respuesta de test-connection:', response.status, response.statusText);
+    
+    // Si hay error, leer el cuerpo antes de handleResponse
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error del servidor:', errorText);
+      try {
+        const errorData = JSON.parse(errorText);
+        throw new Error(errorData.error || errorData.message || 'Error al conectar');
+      } catch (e) {
+        throw new Error(errorText || 'Error al conectar con el router');
+      }
+    }
+    
     return handleResponse(response);
   },
   
@@ -1489,6 +1645,73 @@ async deletePayment(paymentId: string): Promise<{ message: string; payment: any 
   });
   return handleResponse(response);
 },
+
+// ============= DUNNING API =============
+  /**
+   * Corta el servicio a todos los clientes morosos
+   * @param cutProfile - Perfil de corte a aplicar (opcional, por defecto 'CORTE MOROSO')
+   */
+  async cutAllOverdueCustomers(cutProfile?: string): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      total: number;
+      cut: number;
+      failed: number;
+      results: Array<{
+        customerId: string;
+        customerName: string;
+        username?: string;
+        routerName?: string;
+        status: 'success' | 'failed' | 'skipped';
+        message: string;
+      }>;
+    };
+  }> {
+    const token = getToken();
+    if (!token) {
+      throw new Error("No hay token de autenticación. Por favor, inicia sesión nuevamente.");
+    }
+
+    console.log('🔪 Iniciando corte masivo, URL:', `${API_URL}/dunning/cut-all-overdue`);
+    console.log('🔑 Token presente:', token ? 'Sí' : 'No');
+    
+    try {
+      const response = await fetch(`${API_URL}/dunning/cut-all-overdue`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ cutProfile }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Error del servidor:', response.status, errorText);
+        
+        if (response.status === 401 || response.status === 403) {
+          throw new Error("Token inválido o expirado. Por favor, inicia sesión nuevamente.");
+        }
+        
+        if (response.status === 500) {
+          throw new Error("Error interno del servidor. Intenta nuevamente más tarde.");
+        }
+        
+        throw new Error(`Error del servidor: ${response.status}`);
+      }
+      
+      return handleResponse(response);
+    } catch (error: any) {
+      console.error('❌ Error en cutAllOverdueCustomers:', error);
+      
+      if (error.message === "Failed to fetch" || error.name === "TypeError" || error.code === "ECONNREFUSED") {
+        throw new Error(`No se pudo conectar al servidor en ${API_URL}. Verifica que el backend esté corriendo.`);
+      }
+      
+      throw error;
+    }
+  },
 };
 
 

@@ -181,13 +181,65 @@ class PPPoEService {
 
     try {
       await conn.connect();
-      const users = await conn.write('/ppp/secret/print', [`?name=${username}`]);
+      
+      // ✅ PASO 1: Desconectar cliente si está activo para reflejar el cambio inmediatamente
+      console.log(`📴 Verificando si ${username} está conectado...`);
+      let activeUsers = [];
+      try {
+        const allActive = await conn.write('/ppp/active/print');
+        activeUsers = Array.isArray(allActive) ? allActive.filter(u => u.name === username) : [];
+      } catch (activeError) {
+        // Si falla, intentar método alternativo
+        try {
+          const allActive = await conn.write('/ppp/active/print', [`?name=${username}`]);
+          activeUsers = Array.isArray(allActive) ? allActive : [];
+        } catch (fallbackActiveError) {
+          console.log(`⚠️ No se pudo verificar usuarios activos: ${fallbackActiveError.message}`);
+        }
+      }
+      
+      // Desconectar si está activo
+      if (activeUsers.length > 0 && activeUsers[0]['.id']) {
+        console.log(`📴 Cliente ${username} está conectado, desconectando para aplicar cambio de perfil...`);
+        try {
+          await conn.write('/ppp/active/remove', [`=.id=${activeUsers[0]['.id']}`]);
+          console.log(`✅ Cliente ${username} desconectado exitosamente`);
+          // Esperar un momento para que se complete la desconexión
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (disconnectError) {
+          console.log(`⚠️ Error al desconectar (puede que ya esté desconectado): ${disconnectError.message}`);
+          // Continuar con el cambio de perfil aunque falle la desconexión
+        }
+      } else {
+        console.log(`ℹ️ Cliente ${username} no está conectado actualmente`);
+      }
+      
+      // ✅ PASO 2: Obtener todos los secretos y filtrar localmente para evitar errores con !empty
+      let users = [];
+      try {
+        const allSecrets = await conn.write('/ppp/secret/print');
+        users = Array.isArray(allSecrets) ? allSecrets.filter(u => u.name === username) : [];
+      } catch (error) {
+        // Si falla, intentar con el método original como fallback
+        try {
+          users = await conn.write('/ppp/secret/print', [`?name=${username}`]);
+          if (!Array.isArray(users)) {
+            users = [];
+          }
+        } catch (fallbackError) {
+          throw new Error(`Error al obtener secretos del router: ${fallbackError.message}`);
+        }
+      }
 
       if (users.length === 0) {
         throw new Error(`Usuario PPPoE '${username}' no encontrado en el router.`);
       }
 
+      // ✅ PASO 3: Cambiar el perfil
       const userId = users[0]['.id'];
+      const currentProfile = users[0].profile || 'default';
+      console.log(`🔄 Cambiando perfil de '${currentProfile}' a '${newProfile}'...`);
+      
       await conn.write('/ppp/secret/set', [`=.id=${userId}`, `=profile=${newProfile}`]);
 
       // Actualizar el perfil en la base de datos también
@@ -197,12 +249,26 @@ class PPPoEService {
       });
 
       console.log(`✅ Perfil de ${username} cambiado a '${newProfile}' exitosamente.`);
-      return { success: true, message: 'Perfil cambiado exitosamente.' };
+      return { 
+        success: true, 
+        message: 'Perfil cambiado exitosamente.',
+        wasDisconnected: activeUsers.length > 0
+      };
     } catch (error) {
       console.error(`❌ Error cambiando el perfil para ${username}:`, error);
+      
+      // Manejar errores específicos de RosException
+      if (error.errno === 'UNKNOWNREPLY' || error.message?.includes('unknown reply')) {
+        throw new Error(`Error de comunicación con el router: respuesta inesperada del MikroTik`);
+      }
+      
       throw new Error(`No se pudo cambiar el perfil en el router para ${username}: ${error.message}`);
     } finally {
-      conn.close();
+      try {
+        conn.close();
+      } catch (closeError) {
+        console.log(`⚠️ Error al cerrar conexión: ${closeError.message}`);
+      }
     }
   }
 
@@ -327,6 +393,207 @@ class PPPoEService {
     } catch (error) {
       throw new Error(`Error al conectar con MikroTik: ${error.message}`);
     }
+  }
+
+  /**
+   * Corta el servicio a todos los clientes morosos
+   * @param {string} cutProfile - Perfil de corte a aplicar (por defecto 'CORTE MOROSO')
+   * @returns {Promise<{total: number, cut: number, failed: number, results: Array}>}
+   */
+  async cutAllOverdueCustomers(cutProfile = 'CORTE MOROSO') {
+    console.log(`🔪 Iniciando corte masivo de clientes morosos con perfil: ${cutProfile}`);
+    
+    // Obtener todos los clientes con facturas OVERDUE o balance > 0
+    const overdueCustomers = await prisma.customer.findMany({
+      where: {
+        status: 'ACTIVE',
+        deletedAt: null,
+        OR: [
+          {
+            billingAccount: {
+              balance: { gt: 0 }
+            }
+          },
+          {
+            invoices: {
+              some: {
+                status: 'OVERDUE',
+                dueDate: { lt: new Date() }
+              }
+            }
+          }
+        ]
+      },
+      include: {
+        billingAccount: true,
+        pppoeAccounts: {
+          where: { 
+            active: true,
+            deletedAt: null
+          },
+          include: {
+            device: true
+          }
+        }
+      }
+    });
+
+    console.log(`📊 Encontrados ${overdueCustomers.length} clientes morosos`);
+
+    const results = [];
+    let cutCount = 0;
+    let failedCount = 0;
+
+    for (const customer of overdueCustomers) {
+      if (!customer.pppoeAccounts || customer.pppoeAccounts.length === 0) {
+        console.log(`⚠️ Cliente ${customer.name} no tiene cuentas PPPoE activas`);
+        results.push({
+          customerId: customer.id,
+          customerName: customer.name,
+          status: 'skipped',
+          message: 'No tiene cuentas PPPoE activas'
+        });
+        continue;
+      }
+
+      // Cortar cada cuenta PPPoE del cliente
+      for (const pppoeAccount of customer.pppoeAccounts) {
+        let conn = null;
+        try {
+          console.log(`🔪 Cortando servicio a ${customer.name} (${pppoeAccount.username}) en router ${pppoeAccount.device.name}`);
+          
+          // Usar el método existente changeCustomerProfile que ya maneja estos casos
+          try {
+            await this.changeCustomerProfile(pppoeAccount.username, cutProfile);
+            
+            console.log(`✅ Servicio cortado para ${customer.name} (${pppoeAccount.username})`);
+            cutCount++;
+            
+            results.push({
+              customerId: customer.id,
+              customerName: customer.name,
+              username: pppoeAccount.username,
+              routerName: pppoeAccount.device.name,
+              status: 'success',
+              message: `Perfil cambiado a '${cutProfile}'`
+            });
+          } catch (profileError) {
+            // Si falla, intentar método manual con mejor manejo de errores
+            console.log(`⚠️ Método automático falló, intentando método manual para ${pppoeAccount.username}`);
+            
+            conn = await this.getRouterConnection(pppoeAccount.deviceId);
+            await conn.connect();
+            
+            try {
+              // Obtener usuarios activos - usar método más seguro
+              let activeUsers = [];
+              try {
+                const allActive = await conn.write('/ppp/active/print');
+                activeUsers = Array.isArray(allActive) ? allActive.filter(u => u.name === pppoeAccount.username) : [];
+              } catch (activeError) {
+                // Si falla, asumir que no hay usuarios activos
+                console.log(`⚠️ No se pudo verificar usuarios activos: ${activeError.message}`);
+              }
+              
+              // Desconectar si está activo
+              if (activeUsers.length > 0 && activeUsers[0]['.id']) {
+                console.log(`📴 Desconectando cliente activo: ${pppoeAccount.username}`);
+                try {
+                  await conn.write('/ppp/active/remove', [`=.id=${activeUsers[0]['.id']}`]);
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                } catch (disconnectError) {
+                  console.log(`⚠️ Error al desconectar (puede que ya esté desconectado): ${disconnectError.message}`);
+                }
+              }
+
+              // Obtener el secreto PPPoE - método más seguro
+              let secrets = [];
+              try {
+                const allSecrets = await conn.write('/ppp/secret/print');
+                secrets = Array.isArray(allSecrets) ? allSecrets.filter(s => s.name === pppoeAccount.username) : [];
+              } catch (secretError) {
+                throw new Error(`Error al obtener secretos del router: ${secretError.message}`);
+              }
+              
+              if (secrets.length === 0) {
+                throw new Error(`Usuario PPPoE '${pppoeAccount.username}' no encontrado en el router`);
+              }
+
+              const userId = secrets[0]['.id'];
+              const currentProfile = secrets[0].profile || 'default';
+              
+              // Cambiar perfil a corte
+              await conn.write('/ppp/secret/set', [`=.id=${userId}`, `=profile=${cutProfile}`]);
+              
+              // Actualizar en la base de datos
+              await prisma.pppoeAccount.update({
+                where: { id: pppoeAccount.id },
+                data: { profile: cutProfile },
+              });
+
+              console.log(`✅ Servicio cortado para ${customer.name} (${pppoeAccount.username})`);
+              cutCount++;
+              
+              results.push({
+                customerId: customer.id,
+                customerName: customer.name,
+                username: pppoeAccount.username,
+                routerName: pppoeAccount.device.name,
+                status: 'success',
+                message: `Perfil cambiado de '${currentProfile}' a '${cutProfile}'`
+              });
+            } finally {
+              if (conn) {
+                try {
+                  conn.close();
+                } catch (closeError) {
+                  console.log(`⚠️ Error al cerrar conexión: ${closeError.message}`);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error cortando servicio a ${customer.name} (${pppoeAccount.username}):`, error.message);
+          
+          // Cerrar conexión si está abierta
+          if (conn) {
+            try {
+              conn.close();
+            } catch (closeError) {
+              // Ignorar errores al cerrar
+            }
+          }
+          
+          failedCount++;
+          
+          // Extraer mensaje de error más descriptivo
+          let errorMessage = error.message || 'Error desconocido';
+          if (error.errno === 'UNKNOWNREPLY' || error.message?.includes('unknown reply')) {
+            errorMessage = `Error de comunicación con el router: respuesta inesperada del MikroTik`;
+          } else if (error.code === 'ECONNREFUSED') {
+            errorMessage = `No se pudo conectar al router ${pppoeAccount.device?.name || 'desconocido'}`;
+          }
+          
+          results.push({
+            customerId: customer.id,
+            customerName: customer.name,
+            username: pppoeAccount.username,
+            routerName: pppoeAccount.device?.name || 'Desconocido',
+            status: 'failed',
+            message: errorMessage
+          });
+        }
+      }
+    }
+
+    console.log(`✅ Corte masivo completado: ${cutCount} cortes exitosos, ${failedCount} fallidos`);
+
+    return {
+      total: overdueCustomers.length,
+      cut: cutCount,
+      failed: failedCount,
+      results
+    };
   }
 }
 

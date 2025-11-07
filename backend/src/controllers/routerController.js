@@ -100,36 +100,67 @@ class RouterController {
   }
 
   async testConnectionNew(req, res) {
+    // ✅ Guardar variables fuera del try para usarlas en el catch
+    let ipAddress, apiPort, username, password, useTls;
+    
     try {
-      console.log('Request Body:', req.body); // Added for debugging
-      const { ipAddress, apiPort, username, password, useTls } = req.body;
+      console.log('📥 Request Body recibido:', { 
+        ...req.body, 
+        password: req.body.password ? '***' : undefined 
+      });
+      
+      ({ ipAddress, apiPort, username, password, useTls } = req.body);
 
-      if (!ipAddress || !apiPort || !username || !password) {
+      // Validación más detallada
+      if (!ipAddress || ipAddress.trim() === '') {
         return res.status(400).json({
           success: false,
-          error: 'Faltan datos requeridos'
+          error: 'La dirección IP es requerida'
+        });
+      }
+      
+      if (!apiPort || isNaN(parseInt(apiPort)) || parseInt(apiPort) < 1 || parseInt(apiPort) > 65535) {
+        return res.status(400).json({
+          success: false,
+          error: 'El puerto API debe ser un número válido entre 1 y 65535'
+        });
+      }
+      
+      if (!username || username.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          error: 'El nombre de usuario es requerido'
+        });
+      }
+      
+      if (!password || password.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          error: 'La contraseña es requerida'
         });
       }
 
-      console.log(`🔌 Conectando a ${ipAddress}:${apiPort}...`);
+      const portNumber = parseInt(apiPort, 10);
+      console.log(`🔌 Conectando a ${ipAddress}:${portNumber} (puerto del formulario)...`);
 
       const conn = new RouterOSAPI({
         host: ipAddress,
-        port: parseInt(apiPort),
+        port: portNumber, // ✅ Usar el puerto que el usuario ingresó en el formulario
         user: username,
         password: password,
+        timeout: 10, // 10 segundos de timeout
         tls: useTls ? { rejectUnauthorized: false } : undefined
       });
 
       try {
         await conn.connect();
-        console.log('✅ Conectado');
+        console.log('✅ Conectado exitosamente');
 
         const identity = await conn.write('/system/identity/print');
         const resources = await conn.write('/system/resource/print');
 
         conn.close();
-        console.log('🔌 Cerrado');
+        console.log('🔌 Conexión cerrada');
 
         const data = resources[0];
         const cpuLoad = parseFloat(data['cpu-load'] || 0);
@@ -149,15 +180,90 @@ class RouterController {
             architecture: data['architecture-name']
           }
         });
-      } catch (error) {
-        if (conn) conn.close();
-        throw error;
+      } catch (connectError) {
+        console.error('❌ Error en conexión:', connectError);
+        if (conn) {
+          try {
+            conn.close();
+          } catch (closeError) {
+            // Ignorar errores al cerrar
+          }
+        }
+        throw connectError;
       }
     } catch (error) {
-      console.error('❌ Error:', error.message);
+      console.error('❌ Error completo:', error);
+      console.error('❌ Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        errno: error.errno,
+        stack: error.stack
+      });
+      
+      // Mensajes de error más descriptivos
+      let errorMessage = 'Error al conectar con el router';
+      
+      // Usar valores de req.body si las variables no están definidas (por si el error ocurre antes de la asignación)
+      const errorIpAddress = ipAddress || req.body?.ipAddress || 'desconocida';
+      const errorApiPort = apiPort || req.body?.apiPort || 'desconocido';
+      
+      // Verificar errno (códigos de error del sistema)
+      if (error.errno !== undefined) {
+        // errno -61 en macOS/Linux = ECONNREFUSED
+        // errno -111 en Linux = ECONNREFUSED
+        if (error.errno === -61 || error.errno === -111 || error.errno === 61 || error.errno === 111) {
+          errorMessage = `No se pudo conectar al router en ${errorIpAddress}:${errorApiPort}. La conexión fue rechazada. Verifica que:
+- El router esté encendido y accesible
+- El puerto ${errorApiPort} esté abierto y no bloqueado por firewall
+- La dirección IP ${errorIpAddress} sea correcta
+- El router permita conexiones desde este servidor`;
+        } else if (error.errno === -60 || error.errno === 60) {
+          errorMessage = `Timeout al conectar al router ${errorIpAddress}:${errorApiPort}. El router no respondió en el tiempo esperado.`;
+        } else if (error.errno === -64 || error.errno === 64) {
+          errorMessage = `No se pudo resolver la dirección IP ${errorIpAddress}. Verifica que la IP sea correcta.`;
+        } else if (error.errno === -65 || error.errno === 65) {
+          errorMessage = `El router en ${errorIpAddress} no es accesible desde este servidor. Verifica la conectividad de red.`;
+        } else {
+          errorMessage = `Error de conexión (errno: ${error.errno}). Verifica la configuración del router.`;
+        }
+      } else if (error.code) {
+        // Errores de red comunes por código
+        switch (error.code) {
+          case 'ECONNREFUSED':
+            errorMessage = `No se pudo conectar al router en ${errorIpAddress}:${errorApiPort}. La conexión fue rechazada. Verifica que el router esté encendido, el puerto ${errorApiPort} esté abierto y la IP sea correcta.`;
+            break;
+          case 'ETIMEDOUT':
+          case 'TIMEOUT':
+            errorMessage = `Timeout al conectar al router. El router no respondió en el tiempo esperado.`;
+            break;
+          case 'ENOTFOUND':
+            errorMessage = `No se pudo resolver la dirección IP ${errorIpAddress}. Verifica que la IP sea correcta.`;
+            break;
+          case 'EHOSTUNREACH':
+            errorMessage = `El router en ${errorIpAddress} no es accesible desde este servidor. Verifica la conectividad de red.`;
+            break;
+          default:
+            errorMessage = `Error de conexión (${error.code}): ${error.message || 'Error desconocido'}`;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Si el error menciona credenciales o autenticación
+      const errorMsgLower = errorMessage.toLowerCase();
+      if (errorMsgLower.includes('invalid') || 
+          errorMsgLower.includes('password') || 
+          errorMsgLower.includes('credential') ||
+          errorMsgLower.includes('authentication') ||
+          errorMsgLower.includes('login')) {
+        errorMessage = 'Credenciales incorrectas. Verifica el usuario y contraseña del router.';
+      }
+      
+      console.error('📤 Enviando error al cliente:', errorMessage);
       res.status(400).json({
         success: false,
-        error: error.message || 'Error al conectar'
+        error: errorMessage
       });
     }
   }

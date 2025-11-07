@@ -47,6 +47,12 @@ class RouterService {
     console.log('✅ Contraseña encriptada exitosamente');
     
     console.log('🔧 Creando dispositivo en la base de datos...');
+    console.log('📝 Puerto API recibido:', data.apiPort, '(tipo:', typeof data.apiPort, ')');
+    
+    // Asegurar que apiPort sea un número
+    const apiPortNumber = typeof data.apiPort === 'string' ? parseInt(data.apiPort, 10) : data.apiPort;
+    console.log('📝 Puerto API convertido:', apiPortNumber);
+    
     const device = await prisma.networkDevice.create({
       data: {
         code: await this.generateDeviceCode(),
@@ -54,7 +60,7 @@ class RouterService {
         deviceType: data.deviceType || 'MIKROTIK_ROUTER',
         model: data.model || null,
         ipAddress: data.ipAddress,
-        apiPort: data.apiPort,
+        apiPort: apiPortNumber, // ✅ Usar el puerto que el usuario ingresó
         connectionType: 'HTTP',  // ✅ CAMBIO: 'API' no existe, usar 'HTTP' o 'HTTPS'
         useTls: data.useTls || false,
         location: data.location || null,

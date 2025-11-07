@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Ticket, DollarSign, FileText, TrendingUp, Bell, Router, RefreshCw } from "lucide-react";
+import { Users, Ticket, DollarSign, FileText, TrendingUp, Bell, Router, RefreshCw, PowerOff } from "lucide-react";
 import DashboardNav from "@/components/layout/DashboardNav";
 import EnhancedReceiptsTable from "@/components/tables/EnhancedReceiptsTable";
 import AdvancedBillingFilters, { BillingFilters } from "@/components/forms/AdvancedBillingFilters";
@@ -33,6 +33,7 @@ export default function ReceiptsPage() {
   const [showAdvancePaymentHistoryModal, setShowAdvancePaymentHistoryModal] = useState(false);
   const [showPaymentHistoryModal, setShowPaymentHistoryModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [cuttingAll, setCuttingAll] = useState(false);
 
   // filtros & paginación
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -222,6 +223,38 @@ export default function ReceiptsPage() {
     });
   };
 
+  const handleCutAllOverdue = async () => {
+    if (!confirm("⚠️ ¿Está seguro de cortar el servicio a TODOS los clientes morosos?\n\nEsta acción cambiará el perfil de todos los clientes con deuda pendiente a 'CORTE MOROSO'.\n\nEsta acción no se puede deshacer fácilmente.")) {
+      return;
+    }
+
+    setCuttingAll(true);
+    try {
+      const result = await apiFacade.cutAllOverdueCustomers();
+      
+      if (result.success) {
+        const { total, cut, failed } = result.data;
+        toast.success(
+          `✅ Corte masivo completado: ${cut} clientes cortados exitosamente${failed > 0 ? `, ${failed} fallidos` : ''}`,
+          { duration: 5000 }
+        );
+        
+        // Mostrar detalles en consola
+        console.log("📊 Resultados del corte masivo:", result.data);
+        
+        // Recargar datos
+        await loadData({ page: filter === "all" ? page : 1, filter });
+      } else {
+        throw new Error(result.message || "Error al realizar el corte masivo");
+      }
+    } catch (error: any) {
+      console.error("Error en corte masivo:", error);
+      toast.error(error.message || "Error al cortar servicios de clientes morosos");
+    } finally {
+      setCuttingAll(false);
+    }
+  };
+
   // Handlers para pagos adelantados
   const handleAdvancePaymentClick = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -323,7 +356,16 @@ export default function ReceiptsPage() {
                 <span className="text-xs text-muted-foreground">de {totalPages}</span>
               </div>
             )}
-            <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <Button 
+              variant="destructive" 
+              onClick={handleCutAllOverdue} 
+              disabled={cuttingAll || loading}
+              className="gap-2"
+            >
+              <PowerOff className={`h-4 w-4 ${cuttingAll ? 'animate-spin' : ''}`} />
+              {cuttingAll ? "Cortando..." : "Cortar Todos los Morosos"}
+            </Button>
+            <Button variant="outline" onClick={handleRefresh} className="gap-2" disabled={cuttingAll}>
               <RefreshCw className="h-4 w-4" />
               Refrescar
             </Button>

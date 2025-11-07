@@ -84,23 +84,43 @@ export default function CreateRouterModal({ onClose, onSuccess }: CreateRouterMo
       const token = localStorage.getItem("access_token");
       if (!token) throw new Error("No se encontró el token de autenticación");
 
-      const response = await apiFacade.testRouterConnection(token, {
+      // Validar y convertir apiPort
+      const apiPortNum = parseInt(formData.apiPort, 10);
+      if (isNaN(apiPortNum) || apiPortNum < 1 || apiPortNum > 65535) {
+        toast.error("El puerto API debe ser un número válido entre 1 y 65535");
+        return;
+      }
+
+      console.log('📤 Enviando datos de conexión:', {
         ipAddress: formData.ipAddress,
-        apiPort: Number(formData.apiPort),
+        apiPort: apiPortNum,
+        apiPortOriginal: formData.apiPort,
         username: formData.username,
-        password: formData.password,
+        password: '***',
         useTls: formData.useTls
+      });
+
+      // ✅ Asegurar que se use el puerto que el usuario ingresó
+      const response = await apiFacade.testRouterConnection(token, {
+        ipAddress: formData.ipAddress.trim(),
+        apiPort: apiPortNum, // ✅ Puerto del formulario, NO un puerto por defecto
+        username: formData.username.trim(),
+        password: formData.password,
+        useTls: !!formData.useTls
       });
 
       if (response.success) {
         setConnectionSuccess(true);
         toast.success(`✅ Conexión exitosa! Router: ${response.data.name || 'MikroTik'}`);
       } else {
-        throw new Error(response.error || 'Error al conectar');
+        const errorMsg = response.error || response.message || 'Error al conectar';
+        console.error('❌ Error en respuesta:', response);
+        throw new Error(errorMsg);
       }
     } catch (error: any) {
-      console.error('Error:', error);
-      toast.error(error.message || "Error al probar conexión");
+      console.error('❌ Error completo en test connection:', error);
+      const errorMessage = error.message || error.error || "Error al probar conexión";
+      toast.error(errorMessage);
       setConnectionSuccess(false);
     } finally {
       setTesting(false);
@@ -122,11 +142,20 @@ export default function CreateRouterModal({ onClose, onSuccess }: CreateRouterMo
       const token = localStorage.getItem("access_token");
       if (!token) throw new Error("No se encontró el token de autenticación");
 
+      // Validar y convertir apiPort para el payload de creación
+      const apiPortForCreate = parseInt(formData.apiPort, 10);
+      if (isNaN(apiPortForCreate) || apiPortForCreate < 1 || apiPortForCreate > 65535) {
+        toast.error("El puerto API debe ser un número válido entre 1 y 65535");
+        return;
+      }
+
+      console.log('📤 Creando router con puerto:', apiPortForCreate, '(del formulario:', formData.apiPort, ')');
+
       // ✅ PAYLOAD SIN createdBy - El backend lo obtiene del token JWT
       const payload = {
         name: formData.name.trim(),
         ipAddress: formData.ipAddress.trim(),
-        apiPort: Number.parseInt(formData.apiPort, 10),
+        apiPort: apiPortForCreate, // ✅ Puerto que el usuario ingresó en el formulario
         username: formData.username.trim(),
         password: formData.password,
         useTls: !!formData.useTls,

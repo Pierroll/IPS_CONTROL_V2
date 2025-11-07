@@ -145,6 +145,104 @@ const createInvoice = async (raw, createdBy) => {
 };
 
 /* =========================
+ * Reactivación de clientes
+ * ========================= */
+const reactivateCustomerIfCut = async (customerId) => {
+  console.log(`🔄 Verificando si el cliente ${customerId} necesita reactivación...`);
+  
+  // Obtener cliente con sus planes activos y cuentas PPPoE
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    include: {
+      customerPlans: {
+        where: { status: 'ACTIVE' },
+        orderBy: { startDate: 'desc' },
+        take: 1,
+        include: {
+          plan: {
+            select: {
+              id: true,
+              name: true,
+              mikrotikProfileName: true
+            }
+          }
+        }
+      },
+      pppoeAccounts: {
+        where: {
+          active: true,
+          deletedAt: null
+        },
+        include: {
+          device: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!customer) {
+    console.log(`⚠️ Cliente ${customerId} no encontrado`);
+    return;
+  }
+
+  // Verificar si tiene plan activo
+  if (!customer.customerPlans || customer.customerPlans.length === 0) {
+    console.log(`⚠️ Cliente ${customer.name} no tiene plan activo`);
+    return;
+  }
+
+  const activePlan = customer.customerPlans[0];
+  const planProfile = activePlan.plan?.mikrotikProfileName;
+
+  if (!planProfile) {
+    console.log(`⚠️ Plan ${activePlan.plan?.name} no tiene perfil MikroTik configurado`);
+    return;
+  }
+
+  // Verificar si tiene cuentas PPPoE
+  if (!customer.pppoeAccounts || customer.pppoeAccounts.length === 0) {
+    console.log(`⚠️ Cliente ${customer.name} no tiene cuentas PPPoE activas`);
+    return;
+  }
+
+  // Verificar si alguna cuenta está cortada
+  const cutProfiles = ['CORTE MOROSO', 'CORTE', 'CUT', 'SUSPENDED'];
+  const pppoeService = require('./pppoeService');
+  let reactivatedCount = 0;
+
+  for (const pppoeAccount of customer.pppoeAccounts) {
+    const currentProfile = pppoeAccount.profile || '';
+    const isCut = cutProfiles.some(cutProfile => 
+      currentProfile.toUpperCase().includes(cutProfile.toUpperCase())
+    );
+
+    if (isCut) {
+      console.log(`🔓 Cliente ${customer.name} (${pppoeAccount.username}) está cortado con perfil '${currentProfile}', reactivando a '${planProfile}'...`);
+      
+      try {
+        await pppoeService.changeCustomerProfile(pppoeAccount.username, planProfile);
+        reactivatedCount++;
+        console.log(`✅ Cliente ${customer.name} (${pppoeAccount.username}) reactivado exitosamente`);
+      } catch (error) {
+        console.error(`❌ Error al reactivar cliente ${customer.name} (${pppoeAccount.username}):`, error.message);
+        // Continuar con los demás clientes aunque uno falle
+      }
+    } else {
+      console.log(`ℹ️ Cliente ${customer.name} (${pppoeAccount.username}) ya está activo con perfil '${currentProfile}'`);
+    }
+  }
+
+  if (reactivatedCount > 0) {
+    console.log(`✅ Reactivación completada: ${reactivatedCount} cuenta(s) reactivada(s) para el cliente ${customer.name}`);
+  }
+};
+
+/* =========================
  * Pagos
  * ========================= */
 const recordPayment = async (raw, createdBy) => {
@@ -287,6 +385,14 @@ const recordPayment = async (raw, createdBy) => {
     `Pago registrado: S/ ${num(amount).toFixed(2)} (${payment.paymentNumber || payment.id}). Adjuntamos su recibo.`,
     filePath
   );
+
+  // ✅ Reactivar cliente si está cortado
+  try {
+    await reactivateCustomerIfCut(customerId);
+  } catch (reactivationError) {
+    // No fallar el pago si la reactivación falla, solo loguear
+    console.error(`⚠️ Error al intentar reactivar cliente ${customerId} después del pago:`, reactivationError.message);
+  }
 
   return prisma.payment.findUnique({
     where: { id: payment.id },
