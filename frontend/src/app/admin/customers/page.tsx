@@ -10,10 +10,13 @@ import CustomerDetailModal from "@/components/forms/CustomerDetailModal"
 import { Customer } from "@/types/customer"
 import DashboardNav from "@/components/layout/DashboardNav"
 import apiFacade from "@/lib/apiFacade"
-import { Users, Ticket, DollarSign, Activity, Bell, FileText, Router } from "lucide-react"
+import { Users, Ticket, DollarSign, Activity, Bell, FileText, Router, Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 export default function CustomersManagement() {
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([])
+  const [searchTerm, setSearchTerm] = useState<string>("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
@@ -37,7 +40,9 @@ export default function CustomersManagement() {
         setLoading(true)
         const customersData = await apiFacade.getCustomers()
         console.log("Datos recibidos de clientes:", customersData)
-        setCustomers(customersData.filter((c) => !c.deletedAt && c.status !== "INACTIVE"))
+        const filtered = customersData.filter((c) => !c.deletedAt && c.status !== "INACTIVE")
+        setCustomers(filtered)
+        setFilteredCustomers(filtered)
       } catch (err) {
         console.error("Error al cargar clientes:", err)
         setError("Error al cargar clientes")
@@ -49,11 +54,65 @@ export default function CustomersManagement() {
     fetchData()
   }, [])
 
+  // Filtrar clientes cuando cambia el término de búsqueda
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredCustomers(customers)
+      return
+    }
+
+    const term = searchTerm.toLowerCase().trim()
+    const filtered = customers.filter((customer) => {
+      const name = customer.name?.toLowerCase() || ""
+      const code = customer.code?.toLowerCase() || ""
+      const email = customer.email?.toLowerCase() || ""
+      const phone = customer.phone?.toLowerCase() || ""
+      const documentNumber = customer.documentNumber?.toLowerCase() || ""
+      const district = customer.district?.toLowerCase() || ""
+      
+      return (
+        name.includes(term) ||
+        code.includes(term) ||
+        email.includes(term) ||
+        phone.includes(term) ||
+        documentNumber.includes(term) ||
+        district.includes(term)
+      )
+    })
+    
+    setFilteredCustomers(filtered)
+  }, [searchTerm, customers])
+
   const handleDeleteCustomer = async (id: string) => {
     if (confirm("¿Estás seguro de eliminar este cliente?")) {
       try {
         await apiFacade.deleteCustomer(id)
-        setCustomers(customers.filter((customer) => customer.id !== id))
+        const updated = customers.filter((customer) => customer.id !== id)
+        setCustomers(updated)
+        // Re-aplicar filtro si hay búsqueda activa
+        if (searchTerm.trim()) {
+          const term = searchTerm.toLowerCase().trim()
+          const filtered = updated.filter((customer) => {
+            const name = customer.name?.toLowerCase() || ""
+            const code = customer.code?.toLowerCase() || ""
+            const email = customer.email?.toLowerCase() || ""
+            const phone = customer.phone?.toLowerCase() || ""
+            const documentNumber = customer.documentNumber?.toLowerCase() || ""
+            const district = customer.district?.toLowerCase() || ""
+            
+            return (
+              name.includes(term) ||
+              code.includes(term) ||
+              email.includes(term) ||
+              phone.includes(term) ||
+              documentNumber.includes(term) ||
+              district.includes(term)
+            )
+          })
+          setFilteredCustomers(filtered)
+        } else {
+          setFilteredCustomers(updated)
+        }
         alert("Cliente eliminado correctamente")
       } catch (err) {
         console.error("Error al eliminar cliente:", err)
@@ -83,7 +142,9 @@ export default function CustomersManagement() {
     try {
       const data = await apiFacade.getCustomers()
       console.log("Clientes después de crear:", data)
-      setCustomers(data.filter((c) => !c.deletedAt && c.status !== "INACTIVE"))
+      const filtered = data.filter((c) => !c.deletedAt && c.status !== "INACTIVE")
+      setCustomers(filtered)
+      setFilteredCustomers(filtered)
       setIsCreateModalOpen(false)
       alert("Cliente creado correctamente")
     } catch (err) {
@@ -97,7 +158,9 @@ export default function CustomersManagement() {
     try {
       const data = await apiFacade.getCustomers()
       console.log("Clientes después de actualizar:", data)
-      setCustomers(data.filter((c) => !c.deletedAt && c.status !== "INACTIVE"))
+      const filtered = data.filter((c) => !c.deletedAt && c.status !== "INACTIVE")
+      setCustomers(filtered)
+      setFilteredCustomers(filtered)
       setSelectedCustomerId(null)
       alert("Cliente actualizado correctamente")
     } catch (err) {
@@ -166,15 +229,45 @@ export default function CustomersManagement() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Lista de Clientes</CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle>Lista de Clientes</CardTitle>
+              <div className="relative w-full max-w-sm">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Buscar por nombre, código, email, teléfono..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            {searchTerm && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Mostrando {filteredCustomers.length} de {customers.length} clientes
+              </p>
+            )}
           </CardHeader>
           <CardContent>
-            <CustomerTable
-              customers={customers}
-              onDelete={handleDeleteCustomer}
-              onEdit={handleEditCustomer}
-              onView={handleViewCustomer}
-            />
+            {filteredCustomers.length === 0 && searchTerm ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No se encontraron clientes que coincidan con "{searchTerm}"</p>
+                <Button
+                  variant="outline"
+                  onClick={() => setSearchTerm("")}
+                  className="mt-4"
+                >
+                  Limpiar búsqueda
+                </Button>
+              </div>
+            ) : (
+              <CustomerTable
+                customers={filteredCustomers}
+                onDelete={handleDeleteCustomer}
+                onEdit={handleEditCustomer}
+                onView={handleViewCustomer}
+              />
+            )}
           </CardContent>
         </Card>
 
