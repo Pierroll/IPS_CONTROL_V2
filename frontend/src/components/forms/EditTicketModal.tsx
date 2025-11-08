@@ -75,8 +75,8 @@ export default function EditTicketModal({ ticketId, onTicketUpdated, onClose }: 
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             {/* Campos similares a Create, pre-llenados con formData */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="title" className="text-right">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="title" className="text-sm sm:text-base sm:text-right">
                 Título
               </Label>
               <Input
@@ -84,7 +84,7 @@ export default function EditTicketModal({ ticketId, onTicketUpdated, onClose }: 
                 name="title"
                 value={formData.title || ""}
                 onChange={handleChange}
-                className="col-span-3"
+                className="col-span-1 sm:col-span-3 w-full"
               />
             </div>
             {/* Agrega más campos */}

@@ -45,28 +45,31 @@ export default function AssignmentTable({ assignments, onDelete, onEdit, onView 
 
           return (
             <TableRow key={a.id}>
-              <TableCell>{a.customer?.name || "N/A"}</TableCell>
-              <TableCell>{a.plan?.name || "N/A"}</TableCell>
+              <TableCell data-label="Cliente">{a.customer?.name || "N/A"}</TableCell>
+              <TableCell data-label="Plan">{a.plan?.name || "N/A"}</TableCell>
 
-              <TableCell>
+              <TableCell data-label="Estado">
                 <Badge variant={a.status === "ACTIVE" ? "default" : "secondary"}>
                   {statusLabel}
                 </Badge>
               </TableCell>
 
-              <TableCell>{fmtDate(a.startDate)}</TableCell>
-              <TableCell>{changeTypeLabel}</TableCell>
+              <TableCell data-label="Fecha Inicio">{fmtDate(a.startDate)}</TableCell>
+              <TableCell data-label="Tipo de Cambio">{changeTypeLabel}</TableCell>
 
-              <TableCell>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => onEdit(a.id)}>
-                    <Edit className="h-4 w-4" />
+              <TableCell data-label="Acciones">
+                <div className="flex gap-1 sm:gap-2 flex-wrap">
+                  <Button variant="outline" size="sm" onClick={() => onEdit(a.id)} className="h-8 w-8 sm:h-9 sm:w-auto sm:px-3">
+                    <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline ml-1">Editar</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => onView(a.id)}>
-                    <Eye className="h-4 w-4" />
+                  <Button variant="outline" size="sm" onClick={() => onView(a.id)} className="h-8 w-8 sm:h-9 sm:w-auto sm:px-3">
+                    <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline ml-1">Ver</span>
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={() => onDelete(a.id)}>
-                    <Trash2 className="h-4 w-4" />
+                  <Button variant="destructive" size="sm" onClick={() => onDelete(a.id)} className="h-8 w-8 sm:h-9 sm:w-auto sm:px-3">
+                    <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline ml-1">Eliminar</span>
                   </Button>
                 </div>
               </TableCell>

@@ -146,11 +146,11 @@ export default function AdvancePaymentHistoryModal({
             advancePayments.map((advancePayment) => (
               <Card key={advancePayment.id} className="w-full">
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <CardTitle className="text-base sm:text-lg">
                       Pago Adelantado - {advancePayment.monthsCount} {advancePayment.monthsCount === 1 ? 'mes' : 'meses'}
                     </CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                       {getStatusBadge(advancePayment.status)}
                       {advancePayment.status === 'ACTIVE' && (
                         <Button
@@ -168,27 +168,27 @@ export default function AdvancePaymentHistoryModal({
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Información del pago */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="h-4 w-4 text-green-600" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <DollarSign className="h-4 w-4 text-green-600 flex-shrink-0" />
                         <span className="text-sm font-medium">Monto Total:</span>
                         <span className="text-sm">S/ {Number(advancePayment.totalAmount).toFixed(2)}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-blue-600" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Calendar className="h-4 w-4 text-blue-600 flex-shrink-0" />
                         <span className="text-sm font-medium">Por Mes:</span>
                         <span className="text-sm">S/ {Number(advancePayment.amountPerMonth).toFixed(2)}</span>
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4 text-purple-600" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <CreditCard className="h-4 w-4 text-purple-600 flex-shrink-0" />
                         <span className="text-sm font-medium">Método:</span>
                         <span className="text-sm">{getPaymentMethodLabel(advancePayment.paymentMethod)}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-gray-600" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Calendar className="h-4 w-4 text-gray-600 flex-shrink-0" />
                         <span className="text-sm font-medium">Fecha:</span>
                         <span className="text-sm">{new Date(advancePayment.paymentDate).toLocaleDateString('es-PE')}</span>
                       </div>

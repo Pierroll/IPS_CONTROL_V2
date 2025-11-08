@@ -23,46 +23,52 @@ export default function UserTable({ users, onDelete, onEdit }: UserTableProps) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Nombre</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Rol</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead>Acciones</TableHead>
+            <TableHead className="min-w-[120px]">Nombre</TableHead>
+            <TableHead className="min-w-[180px]">Email</TableHead>
+            <TableHead className="min-w-[100px]">Rol</TableHead>
+            <TableHead className="min-w-[100px]">Estado</TableHead>
+            <TableHead className="min-w-[140px]">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {users.map((user) => (
             <TableRow key={user.id}>
-              <TableCell>{user.name || "Sin nombre"}</TableCell>
-              <TableCell>{user.email}</TableCell>
-              <TableCell>{user.role}</TableCell>
-              <TableCell>
+              <TableCell className="font-medium" data-label="Nombre">{user.name || "Sin nombre"}</TableCell>
+              <TableCell className="min-w-[180px] break-all" data-label="Email">{user.email}</TableCell>
+              <TableCell className="min-w-[100px]" data-label="Rol">{user.role}</TableCell>
+              <TableCell data-label="Estado">
                 <Badge variant={user.active ? "default" : "secondary"}>
                   {console.log("Usuario en tabla:", user), user.active ? "Activo" : "Inactivo"}
                 </Badge>
               </TableCell>
-              <TableCell>
-                <div className="flex gap-2">
+              <TableCell data-label="Acciones">
+                <div className="flex gap-1 sm:gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setViewUserId(user.id)}
+                    className="h-8 w-8 sm:h-9 sm:w-auto sm:px-3"
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline ml-1">Ver</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => onEdit(user.id)}
+                    className="h-8 w-8 sm:h-9 sm:w-auto sm:px-3"
                   >
-                    <Edit className="h-4 w-4" />
+                    <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline ml-1">Editar</span>
                   </Button>
                   <Button
                     variant="destructive"
                     size="sm"
                     onClick={() => onDelete(user.id)}
+                    className="h-8 w-8 sm:h-9 sm:w-auto sm:px-3"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline ml-1">Eliminar</span>
                   </Button>
                 </div>
               </TableCell>

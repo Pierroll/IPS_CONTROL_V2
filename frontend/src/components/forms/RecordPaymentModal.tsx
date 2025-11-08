@@ -122,10 +122,10 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpe
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-2 sm:py-4">
             {/* Monto (solo lectura, precargado con la deuda actual) */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="amount" className="text-right">Monto</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="amount" className="text-sm sm:text-base sm:text-right">Monto</Label>
               <Input
                 id="amount"
                 name="amount"
@@ -133,19 +133,19 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpe
                 step="0.01"
                 value={formData.amount}
                 readOnly
-                className="col-span-3"
+                className="col-span-1 sm:col-span-3"
               />
             </div>
 
             {/* Método de pago */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="paymentMethod" className="text-right">Método de Pago</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="paymentMethod" className="text-sm sm:text-base sm:text-right">Método de Pago</Label>
               <Select
                 name="paymentMethod"
                 value={formData.paymentMethod}
                 onValueChange={(value) => handleSelectChange("paymentMethod", value)}
               >
-                <SelectTrigger className="col-span-3">
+                <SelectTrigger className="col-span-1 sm:col-span-3 w-full">
                   <SelectValue placeholder="Selecciona un método" />
                 </SelectTrigger>
                 <SelectContent>
@@ -161,14 +161,14 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpe
 
             {/* Proveedor si billetera */}
             {formData.paymentMethod === "DIGITAL_WALLET" && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="walletProvider" className="text-right">Proveedor</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+                <Label htmlFor="walletProvider" className="text-sm sm:text-base sm:text-right">Proveedor</Label>
                 <Select
                   name="walletProvider"
                   value={formData.walletProvider || ""}
                   onValueChange={(value) => handleSelectChange("walletProvider", value)}
                 >
-                  <SelectTrigger className="col-span-3">
+                  <SelectTrigger className="col-span-1 sm:col-span-3 w-full">
                     <SelectValue placeholder="Selecciona un proveedor" />
                   </SelectTrigger>
                   <SelectContent>
@@ -182,49 +182,49 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpe
             )}
 
             {/* Referencia */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="reference" className="text-right">Referencia</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="reference" className="text-sm sm:text-base sm:text-right">Referencia</Label>
               <Input
                 id="reference"
                 name="reference"
                 value={formData.reference}
                 onChange={handleInputChange}
-                className="col-span-3"
+                className="col-span-1 sm:col-span-3 w-full"
               />
             </div>
 
             {/* Fecha de pago */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="paymentDate" className="text-right">Fecha de Pago</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="paymentDate" className="text-sm sm:text-base sm:text-right">Fecha de Pago</Label>
               <Input
                 id="paymentDate"
                 name="paymentDate"
                 type="date"
                 value={formData.paymentDate}
                 onChange={handleInputChange}
-                className="col-span-3"
+                className="col-span-1 sm:col-span-3 w-full"
                 required
               />
             </div>
 
             {/* Notas */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="notes" className="text-right">Notas</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="notes" className="text-sm sm:text-base sm:text-right">Notas</Label>
               <textarea
                 id="notes"
                 name="notes"
                 value={formData.notes}
                 onChange={handleInputChange}
-                className="col-span-3 border rounded p-2"
+                className="col-span-1 sm:col-span-3 w-full border rounded p-2 min-h-[80px] resize-y"
               />
             </div>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting || currentBalance <= 0}>
+            <Button type="submit" disabled={isSubmitting || currentBalance <= 0} className="w-full sm:w-auto">
               {isSubmitting ? "Procesando..." : `Registrar Pago (S/ ${currentBalance.toFixed(2)})`}
             </Button>
           </DialogFooter>

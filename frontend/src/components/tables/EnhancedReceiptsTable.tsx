@@ -127,14 +127,14 @@ export default function EnhancedReceiptsTable({
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="font-semibold">Cliente</TableHead>
-            <TableHead className="font-semibold">Ubicación</TableHead>
-            <TableHead className="font-semibold">MikroTik</TableHead>
-            <TableHead className="font-semibold">Plan</TableHead>
-            <TableHead className="font-semibold">Estado</TableHead>
-            <TableHead className="font-semibold">Saldo</TableHead>
-            <TableHead className="font-semibold">Mes Deuda</TableHead>
-            <TableHead className="font-semibold">Acciones</TableHead>
+            <TableHead className="font-semibold min-w-[150px]">Cliente</TableHead>
+            <TableHead className="font-semibold hidden md:table-cell">Ubicación</TableHead>
+            <TableHead className="font-semibold hidden lg:table-cell">MikroTik</TableHead>
+            <TableHead className="font-semibold min-w-[120px]">Plan</TableHead>
+            <TableHead className="font-semibold min-w-[100px]">Estado</TableHead>
+            <TableHead className="font-semibold whitespace-nowrap">Saldo</TableHead>
+            <TableHead className="font-semibold hidden xl:table-cell">Mes Deuda</TableHead>
+            <TableHead className="font-semibold min-w-[200px]">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -149,7 +149,7 @@ export default function EnhancedReceiptsTable({
                 className={cn("transition-colors", getRowColor(customer))}
               >
                 {/* Cliente */}
-                <TableCell className="font-medium">
+                <TableCell className="font-medium" data-label="Cliente">
                   <div className="flex flex-col">
                     <span className="font-semibold">{customer.name}</span>
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -160,7 +160,7 @@ export default function EnhancedReceiptsTable({
                 </TableCell>
 
                 {/* Ubicación */}
-                <TableCell>
+                <TableCell className="hidden md:table-cell" data-label="Ubicación">
                   <div className="flex items-center gap-1 text-sm">
                     <MapPin className="h-3 w-3 text-muted-foreground" />
                     <div className="flex flex-col">
@@ -175,7 +175,7 @@ export default function EnhancedReceiptsTable({
                 </TableCell>
 
                 {/* MikroTik */}
-                <TableCell>
+                <TableCell className="hidden lg:table-cell" data-label="MikroTik">
                   {mikrotikInfo?.routerId ? (
                     <div className="flex items-center gap-1 text-sm">
                       <Router className="h-3 w-3 text-muted-foreground" />
@@ -196,7 +196,7 @@ export default function EnhancedReceiptsTable({
                 </TableCell>
 
                 {/* Plan */}
-                <TableCell>
+                <TableCell data-label="Plan">
                   <div className="flex flex-col">
                     <span className="font-medium">
                       {customer.customerPlans?.[0]?.plan?.name || "Sin plan"}
@@ -210,14 +210,14 @@ export default function EnhancedReceiptsTable({
                 </TableCell>
 
                 {/* Estado */}
-                <TableCell>
+                <TableCell data-label="Estado">
                   <Badge variant={paymentStatus.variant} className="text-xs">
                     {paymentStatus.label}
                   </Badge>
                 </TableCell>
 
                 {/* Saldo */}
-                <TableCell>
+                <TableCell data-label="Saldo">
                   <div className="flex items-center gap-1">
                     <DollarSign className="h-3 w-3" />
                     <span className={cn(
@@ -234,7 +234,7 @@ export default function EnhancedReceiptsTable({
                 </TableCell>
 
                 {/* Mes de Deuda */}
-                <TableCell>
+                <TableCell className="hidden xl:table-cell" data-label="Mes Deuda">
                   <div className="flex items-center gap-1 text-sm">
                     <Calendar className="h-3 w-3 text-muted-foreground" />
                     <span>{debtMonth}</span>
@@ -242,63 +242,63 @@ export default function EnhancedReceiptsTable({
                 </TableCell>
 
                 {/* Acciones */}
-                <TableCell>
-                  <div className="flex gap-1">
+                <TableCell data-label="Acciones">
+                  <div className="flex gap-1 flex-wrap">
                     {customer.billingAccount && customer.billingAccount.balance > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => onPaymentClick(customer)}
-                        className="text-xs"
+                        className="text-xs h-7 sm:h-8 px-2 sm:px-3"
                       >
-                        <DollarSign className="h-3 w-3 mr-1" />
-                        Pagar
+                        <DollarSign className="h-3 w-3 sm:mr-1" />
+                        <span className="hidden sm:inline">Pagar</span>
                       </Button>
                     )}
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onViewHistory(customer.id)}
-                      className="text-xs"
+                      className="text-xs h-7 sm:h-8 px-2 sm:px-3"
                     >
-                      <History className="h-3 w-3 mr-1" />
-                      Historial
+                      <History className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Historial</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onDownloadReceipt(customer.id)}
-                      className="text-xs"
+                      className="text-xs h-7 sm:h-8 px-2 sm:px-3"
                     >
-                      <FileText className="h-3 w-3 mr-1" />
-                      Recibo
+                      <FileText className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Recibo</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onAdvancePaymentClick(customer)}
-                      className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700"
+                      className="text-xs h-7 sm:h-8 px-2 sm:px-3 bg-blue-50 hover:bg-blue-100 text-blue-700"
                     >
-                      <CreditCard className="h-3 w-3 mr-1" />
-                      Adelantado
+                      <CreditCard className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Adelantado</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onAdvancePaymentHistoryClick(customer.id)}
-                      className="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700"
+                      className="text-xs h-7 sm:h-8 px-2 sm:px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 hidden lg:inline-flex"
                     >
-                      <Clock className="h-3 w-3 mr-1" />
-                      Ver Adelantos
+                      <Clock className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Ver Adelantos</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onPaymentHistoryClick(customer)}
-                      className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700"
+                      className="text-xs h-7 sm:h-8 px-2 sm:px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 hidden lg:inline-flex"
                     >
-                      <History className="h-3 w-3 mr-1" />
-                      Historial
+                      <History className="h-3 w-3 sm:mr-1" />
+                      <span className="hidden sm:inline">Historial</span>
                     </Button>
                   </div>
                 </TableCell>

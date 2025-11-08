@@ -189,30 +189,30 @@ const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
         </DialogHeader>
         
         <form id="advance-payment-form" onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-2 sm:py-4">
             {/* Cliente */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="customer" className="text-right">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="customer" className="text-sm sm:text-base sm:text-right">
                 Cliente
               </Label>
-              <div className="col-span-3">
+              <div className="col-span-1 sm:col-span-3 w-full">
                 <Input
                   id="customer"
                   value={`${customer.name} (${customer.code})`}
                   disabled
-                  className="bg-gray-50"
+                  className="bg-gray-50 w-full"
                 />
               </div>
             </div>
 
             {/* Selección de Meses */}
             <div className="space-y-4">
-              <Label className="text-base font-medium">Seleccionar Meses a Pagar</Label>
-              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-md p-3">
+              <Label className="text-sm sm:text-base font-medium">Seleccionar Meses a Pagar</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-md p-3">
                 {availableMonths.length === 0 ? (
-                  <div className="col-span-2 text-center py-4 text-gray-500">
+                  <div className="col-span-1 sm:col-span-2 text-center py-4 text-gray-500 text-sm sm:text-base">
                     <p>✅ Todos los meses futuros ya están pagados adelantado</p>
-                    <p className="text-sm">No hay meses disponibles para pagar adelantado</p>
+                    <p className="text-xs sm:text-sm">No hay meses disponibles para pagar adelantado</p>
                   </div>
                 ) : (
                   availableMonths.map(({ month, year }) => {
@@ -221,23 +221,25 @@ const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
                     const amount = selectedMonth?.amount || 60; // Monto por defecto
 
                     return (
-                      <div key={`${year}-${month}`} className="flex items-center space-x-2 p-2 border rounded">
-                        <Checkbox
-                          id={`month-${year}-${month}`}
-                          checked={isSelected}
-                          onCheckedChange={() => handleMonthToggle(month, year, amount)}
-                          disabled={isSubmitting}
-                        />
-                        <Label htmlFor={`month-${year}-${month}`} className="flex-1">
-                          {getMonthName(month)} {year}
-                        </Label>
+                      <div key={`${year}-${month}`} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-2 border rounded">
+                        <div className="flex items-center space-x-2 flex-1 w-full sm:w-auto">
+                          <Checkbox
+                            id={`month-${year}-${month}`}
+                            checked={isSelected}
+                            onCheckedChange={() => handleMonthToggle(month, year, amount)}
+                            disabled={isSubmitting}
+                          />
+                          <Label htmlFor={`month-${year}-${month}`} className="flex-1 text-sm sm:text-base">
+                            {getMonthName(month)} {year}
+                          </Label>
+                        </div>
                         {isSelected && (
-                          <div className="flex items-center space-x-1">
+                          <div className="flex items-center space-x-1 w-full sm:w-auto">
                             <Input
                               type="number"
                               value={amount}
                               onChange={(e) => handleAmountChange(month, year, parseFloat(e.target.value) || 0)}
-                              className="w-20 h-8 text-sm"
+                              className="w-full sm:w-20 h-8 text-sm"
                               min="0"
                               step="0.01"
                               disabled={isSubmitting}
@@ -268,17 +270,17 @@ const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
             )}
 
             {/* Método de Pago */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="paymentMethod" className="text-right">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="paymentMethod" className="text-sm sm:text-base sm:text-right">
                 Método
               </Label>
-              <div className="col-span-3">
+              <div className="col-span-1 sm:col-span-3 w-full">
                 <Select
                   value={formData.paymentMethod}
                   onValueChange={(value) => handleSelectChange("paymentMethod", value)}
                   disabled={isSubmitting}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Seleccionar método" />
                   </SelectTrigger>
                   <SelectContent>
@@ -294,11 +296,11 @@ const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
             </div>
 
             {/* Referencia */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="reference" className="text-right">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="reference" className="text-sm sm:text-base sm:text-right">
                 Referencia
               </Label>
-              <div className="col-span-3">
+              <div className="col-span-1 sm:col-span-3 w-full">
                 <Input
                   id="reference"
                   name="reference"
@@ -306,16 +308,17 @@ const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
                   onChange={handleInputChange}
                   placeholder="Número de operación, voucher, etc."
                   disabled={isSubmitting}
+                  className="w-full"
                 />
               </div>
             </div>
 
             {/* Fecha de Pago */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="paymentDate" className="text-right">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="paymentDate" className="text-sm sm:text-base sm:text-right">
                 Fecha
               </Label>
-              <div className="col-span-3">
+              <div className="col-span-1 sm:col-span-3 w-full">
                 <Input
                   id="paymentDate"
                   name="paymentDate"
@@ -324,16 +327,17 @@ const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
                   onChange={handleInputChange}
                   required
                   disabled={isSubmitting}
+                  className="w-full"
                 />
               </div>
             </div>
 
             {/* Notas */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="notes" className="text-right">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="notes" className="text-sm sm:text-base sm:text-right">
                 Notas
               </Label>
-              <div className="col-span-3">
+              <div className="col-span-1 sm:col-span-3 w-full">
                 <Textarea
                   id="notes"
                   name="notes"
@@ -342,20 +346,22 @@ const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
                   placeholder="Notas adicionales..."
                   disabled={isSubmitting}
                   rows={3}
+                  className="w-full resize-y"
                 />
               </div>
             </div>
           </div>
         </form>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+        <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting} className="w-full sm:w-auto">
             Cancelar
           </Button>
           <Button 
             type="submit" 
             form="advance-payment-form" 
             disabled={isSubmitting || selectedMonths.length === 0}
+            className="w-full sm:w-auto"
           >
             {isSubmitting ? "Creando..." : "Crear Pago Adelantado"}
           </Button>

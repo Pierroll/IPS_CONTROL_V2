@@ -18,14 +18,14 @@ export default function CustomerTable({ customers, onDelete, onEdit, onView }: C
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Código</TableHead>
-          <TableHead>Nombre</TableHead>
-          <TableHead>Email</TableHead>
-          <TableHead>Teléfono</TableHead>
-          <TableHead>Distrito</TableHead>
-          <TableHead>Plan</TableHead>
-          <TableHead>Estado Asignación</TableHead>
-          <TableHead>Acciones</TableHead>
+          <TableHead className="min-w-[80px]">Código</TableHead>
+          <TableHead className="min-w-[120px]">Nombre</TableHead>
+          <TableHead className="hidden md:table-cell">Email</TableHead>
+          <TableHead className="whitespace-nowrap">Teléfono</TableHead>
+          <TableHead className="hidden lg:table-cell">Distrito</TableHead>
+          <TableHead className="min-w-[100px]">Plan</TableHead>
+          <TableHead className="min-w-[120px]">Estado</TableHead>
+          <TableHead className="min-w-[140px]">Acciones</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -38,25 +38,28 @@ export default function CustomerTable({ customers, onDelete, onEdit, onView }: C
 
         return (
           <TableRow key={c.id}>
-            <TableCell>{c.code || "N/A"}</TableCell>
-            <TableCell>{c.name || "Sin nombre"}</TableCell>
-            <TableCell>{c.email || "N/A"}</TableCell>
-            <TableCell>{c.phone || "N/A"}</TableCell>
-            <TableCell>{c.district || "N/A"}</TableCell>
-            <TableCell>{planName}</TableCell>
-            <TableCell>
+            <TableCell className="font-medium" data-label="Código">{c.code || "N/A"}</TableCell>
+            <TableCell className="min-w-[120px]" data-label="Nombre">{c.name || "Sin nombre"}</TableCell>
+            <TableCell className="hidden md:table-cell" data-label="Email">{c.email || "N/A"}</TableCell>
+            <TableCell className="whitespace-nowrap" data-label="Teléfono">{c.phone || "N/A"}</TableCell>
+            <TableCell className="hidden lg:table-cell" data-label="Distrito">{c.district || "N/A"}</TableCell>
+            <TableCell className="min-w-[100px]" data-label="Plan">{planName}</TableCell>
+            <TableCell data-label="Estado">
               <Badge variant={variant as any}>{status}</Badge>
             </TableCell>
-            <TableCell>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => onView(c.id)} aria-label={`Ver ${c.name}`}>
-                  <Eye className="h-4 w-4" />
+            <TableCell data-label="Acciones">
+              <div className="flex gap-1 sm:gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={() => onView(c.id)} aria-label={`Ver ${c.name}`} className="h-8 w-8 sm:h-9 sm:w-auto sm:px-3">
+                  <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline ml-1">Ver</span>
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => onEdit(c.id)} aria-label={`Editar ${c.name}`}>
-                  <Edit className="h-4 w-4" />
+                <Button variant="outline" size="sm" onClick={() => onEdit(c.id)} aria-label={`Editar ${c.name}`} className="h-8 w-8 sm:h-9 sm:w-auto sm:px-3">
+                  <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline ml-1">Editar</span>
                 </Button>
-                <Button variant="destructive" size="sm" onClick={() => onDelete(c.id)} aria-label={`Eliminar ${c.name}`}>
-                  <Trash2 className="h-4 w-4" />
+                <Button variant="destructive" size="sm" onClick={() => onDelete(c.id)} aria-label={`Eliminar ${c.name}`} className="h-8 w-8 sm:h-9 sm:w-auto sm:px-3">
+                  <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline ml-1">Eliminar</span>
                 </Button>
               </div>
             </TableCell>

@@ -126,11 +126,11 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
             payments.map((payment) => (
               <Card key={payment.id} className="w-full">
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <CardTitle className="text-base sm:text-lg">
                       Pago #{payment.id.slice(-8)}
                     </CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                       {getStatusBadge(payment.status)}
                       {payment.status === 'COMPLETED' && (
                         <Button
@@ -148,29 +148,29 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Información del pago */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="h-4 w-4 text-green-600" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <DollarSign className="h-4 w-4 text-green-600 flex-shrink-0" />
                         <span className="text-sm font-medium">Monto:</span>
                         <span className="text-sm">S/ {Number(payment.amount).toFixed(2)}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4 text-purple-600" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <CreditCard className="h-4 w-4 text-purple-600 flex-shrink-0" />
                         <span className="text-sm font-medium">Método:</span>
                         <span className="text-sm">{getPaymentMethodLabel(payment.paymentMethod)}</span>
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-blue-600" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Calendar className="h-4 w-4 text-blue-600 flex-shrink-0" />
                         <span className="text-sm font-medium">Fecha:</span>
                         <span className="text-sm">{new Date(payment.paymentDate).toLocaleDateString('es-PE')}</span>
                       </div>
                       {payment.reference && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium">Referencia:</span>
-                          <span className="text-sm">{payment.reference}</span>
+                          <span className="text-sm break-all">{payment.reference}</span>
                         </div>
                       )}
                     </div>
@@ -182,12 +182,12 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
                       <Separator />
                       <div>
                         <h4 className="text-sm font-medium mb-2">Factura Asociada:</h4>
-                        <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <div>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 bg-gray-50 rounded">
+                          <div className="flex flex-col sm:flex-row gap-1 sm:gap-2">
                             <span className="text-sm font-medium">
                               #{payment.invoice.invoiceNumber}
                             </span>
-                            <span className="text-sm text-gray-600 ml-2">
+                            <span className="text-sm text-gray-600">
                               Total: S/ {Number(payment.invoice.total).toFixed(2)}
                             </span>
                           </div>
@@ -195,8 +195,10 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
                             variant="outline"
                             size="sm"
                             onClick={() => window.open(`/api/billing/invoices/${payment.invoice?.id}/pdf`, '_blank')}
+                            className="w-full sm:w-auto"
                           >
-                            <Download className="h-4 w-4" />
+                            <Download className="h-4 w-4 mr-1" />
+                            <span className="sm:hidden">Descargar</span>
                           </Button>
                         </div>
                       </div>

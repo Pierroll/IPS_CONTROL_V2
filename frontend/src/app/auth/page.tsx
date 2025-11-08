@@ -49,10 +49,22 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="w-full max-w-md p-6 space-y-4">
-        <h1 className="text-2xl font-bold text-center">Iniciar Sesión</h1>
-        {error && <p className="text-red-500 text-center">{error}</p>}
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="w-full max-w-md p-6 space-y-6">
+        {/* Logo */}
+        <div className="flex justify-center mb-6">
+          <img 
+            src="/logo.png" 
+            alt="Logo IPS Control" 
+            className="h-32 sm:h-40 md:h-48 w-auto object-contain max-w-full"
+            onError={(e) => {
+              // Si el logo no existe, ocultar la imagen
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-center">Iniciar Sesión</h1>
+        {error && <p className="text-red-500 text-center text-sm sm:text-base">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>

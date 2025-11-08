@@ -60,20 +60,36 @@ export default function DashboardNav({ items, userName, appName = "Panel Admin",
         aria-label="Barra lateral"
       >
         {/* Header */}
-        <div className="shrink-0 px-4 pt-4 pb-3 border-b border-border flex items-center justify-between">
-          <div>
-            <div className="text-lg font-semibold text-foreground">{appName}</div>
-            {version ? <div className="text-xs text-muted-foreground">v{version}</div> : null}
+        <div className="shrink-0 px-4 pt-4 pb-3 border-b border-border">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3 flex-1">
+              {/* Logo */}
+              <div className="relative h-10 w-10 sm:h-12 sm:w-12 flex-shrink-0">
+                <img 
+                  src="/logo.png" 
+                  alt="Logo" 
+                  className="h-full w-full object-contain"
+                  onError={(e) => {
+                    // Si el logo no existe, ocultar la imagen
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-base sm:text-lg font-semibold text-foreground truncate">{appName}</div>
+                {version ? <div className="text-xs text-muted-foreground">v{version}</div> : null}
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden flex-shrink-0"
+              aria-label="Cerrar menú"
+            >
+              <X className="h-5 w-5" />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden"
-            aria-label="Cerrar menú"
-          >
-            <X className="h-5 w-5" />
-          </Button>
         </div>
 
         {/* Nav scrollable */}
