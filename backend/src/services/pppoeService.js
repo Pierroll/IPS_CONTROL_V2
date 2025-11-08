@@ -182,39 +182,33 @@ class PPPoEService {
     try {
       await conn.connect();
       
-      // ✅ PASO 1: Desconectar cliente si está activo para reflejar el cambio inmediatamente
+      // ✅ PASO 1: Verificar si está conectado (guardar info para después)
       console.log(`📴 Verificando si ${username} está conectado...`);
       let activeUsers = [];
+      let activeUserId = null;
       try {
         const allActive = await conn.write('/ppp/active/print');
         activeUsers = Array.isArray(allActive) ? allActive.filter(u => u.name === username) : [];
+        if (activeUsers.length > 0 && activeUsers[0]['.id']) {
+          activeUserId = activeUsers[0]['.id'];
+        }
       } catch (activeError) {
         // Si falla, intentar método alternativo
         try {
           const allActive = await conn.write('/ppp/active/print', [`?name=${username}`]);
           activeUsers = Array.isArray(allActive) ? allActive : [];
+          if (activeUsers.length > 0 && activeUsers[0]['.id']) {
+            activeUserId = activeUsers[0]['.id'];
+          }
         } catch (fallbackActiveError) {
           console.log(`⚠️ No se pudo verificar usuarios activos: ${fallbackActiveError.message}`);
         }
       }
       
-      // Desconectar si está activo
-      if (activeUsers.length > 0 && activeUsers[0]['.id']) {
-        console.log(`📴 Cliente ${username} está conectado, desconectando para aplicar cambio de perfil...`);
-        try {
-          await conn.write('/ppp/active/remove', [`=.id=${activeUsers[0]['.id']}`]);
-          console.log(`✅ Cliente ${username} desconectado exitosamente`);
-          // Esperar un momento para que se complete la desconexión
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } catch (disconnectError) {
-          console.log(`⚠️ Error al desconectar (puede que ya esté desconectado): ${disconnectError.message}`);
-          // Continuar con el cambio de perfil aunque falle la desconexión
-        }
-      } else {
-        console.log(`ℹ️ Cliente ${username} no está conectado actualmente`);
-      }
+      // ✅ PASO 2: PRIMERO cambiar el perfil (antes de desconectar)
+      console.log(`🔄 Cambiando perfil de ${username} a '${newProfile}'...`);
       
-      // ✅ PASO 2: Obtener todos los secretos y filtrar localmente para evitar errores con !empty
+      // Obtener todos los secretos y filtrar localmente para evitar errores con !empty
       let users = [];
       try {
         const allSecrets = await conn.write('/ppp/secret/print');
@@ -235,18 +229,36 @@ class PPPoEService {
         throw new Error(`Usuario PPPoE '${username}' no encontrado en el router.`);
       }
 
-      // ✅ PASO 3: Cambiar el perfil
+      // Cambiar el perfil PRIMERO
       const userId = users[0]['.id'];
       const currentProfile = users[0].profile || 'default';
       console.log(`🔄 Cambiando perfil de '${currentProfile}' a '${newProfile}'...`);
       
       await conn.write('/ppp/secret/set', [`=.id=${userId}`, `=profile=${newProfile}`]);
+      console.log(`✅ Perfil cambiado exitosamente en el router`);
 
       // Actualizar el perfil en la base de datos también
       await prisma.pppoeAccount.update({
         where: { id: pppoeAccount.id },
         data: { profile: newProfile },
       });
+      console.log(`✅ Perfil actualizado en la base de datos`);
+
+      // ✅ PASO 3: DESPUÉS desconectar para que tome el cambio (si estaba conectado)
+      if (activeUserId) {
+        console.log(`📴 Cliente ${username} está conectado, desconectando para que tome el nuevo perfil...`);
+        try {
+          await conn.write('/ppp/active/remove', [`=.id=${activeUserId}`]);
+          console.log(`✅ Cliente ${username} desconectado exitosamente. Al reconectarse usará el perfil '${newProfile}'`);
+          // Esperar un momento para que se complete la desconexión
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (disconnectError) {
+          console.log(`⚠️ Error al desconectar (puede que ya esté desconectado): ${disconnectError.message}`);
+          // El perfil ya está cambiado, así que está bien
+        }
+      } else {
+        console.log(`ℹ️ Cliente ${username} no está conectado actualmente. El perfil ya está actualizado.`);
+      }
 
       console.log(`✅ Perfil de ${username} cambiado a '${newProfile}' exitosamente.`);
       return { 
