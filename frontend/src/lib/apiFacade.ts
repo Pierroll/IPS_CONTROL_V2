@@ -871,7 +871,7 @@ const apiFacade = {
     window.URL.revokeObjectURL(url);
   },
 
-  async recordPayment(payload: RecordPaymentPayload): Promise<{ message: string; payment: Payment; invoice?: Invoice }> {
+  async recordPayment(payload: RecordPaymentPayload): Promise<{ message: string; payment: Payment; invoice?: Invoice; whatsappSent?: boolean; whatsappError?: string | null }> {
     const token = getToken();
     const response = await fetch(`${API_URL}/billing/payments`, {
       method: "POST",
@@ -1646,6 +1646,20 @@ async deletePayment(paymentId: string): Promise<{ message: string; payment: any 
   return handleResponse(response);
 },
 
+// ===== VOID PAYMENT =====
+async voidPayment(paymentId: string, reason?: string): Promise<{ message: string; payment: any }> {
+  const token = getToken();
+  const response = await fetch(`${API_URL}/billing/payments/${paymentId}/void`, {
+    method: "PATCH",
+    headers: { 
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}` 
+    },
+    body: JSON.stringify({ reason: reason || null }),
+  });
+  return handleResponse(response);
+},
+
 // ============= DUNNING API =============
   /**
    * Corta el servicio a todos los clientes morosos
@@ -1711,6 +1725,101 @@ async deletePayment(paymentId: string): Promise<{ message: string; payment: any 
       
       throw error;
     }
+  },
+
+  // ============= REPORTS API =============
+  async getPaymentReport(params?: {
+    createdBy?: string;
+    from?: string;
+    to?: string;
+    deviceId?: string;
+    customerId?: string;
+    paymentMethod?: string;
+  }): Promise<any[]> {
+    const token = getToken();
+    const qs = new URLSearchParams();
+    if (params?.createdBy) qs.set("createdBy", params.createdBy);
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
+    if (params?.deviceId) qs.set("deviceId", params.deviceId);
+    if (params?.customerId) qs.set("customerId", params.customerId);
+    if (params?.paymentMethod) qs.set("paymentMethod", params.paymentMethod);
+
+    const url = `${API_URL}/reports/payments${qs.toString() ? `?${qs.toString()}` : ""}`;
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    return handleResponse(response);
+  },
+
+  async downloadPaymentReportPdf(params?: {
+    createdBy?: string;
+    from?: string;
+    to?: string;
+    deviceId?: string;
+    customerId?: string;
+    paymentMethod?: string;
+  }): Promise<Blob> {
+    const token = getToken();
+    const qs = new URLSearchParams();
+    if (params?.createdBy) qs.set("createdBy", params.createdBy);
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
+    if (params?.deviceId) qs.set("deviceId", params.deviceId);
+    if (params?.customerId) qs.set("customerId", params.customerId);
+    if (params?.paymentMethod) qs.set("paymentMethod", params.paymentMethod);
+
+    const url = `${API_URL}/reports/payments/pdf${qs.toString() ? `?${qs.toString()}` : ""}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "Error al descargar el reporte");
+    }
+
+    return response.blob();
+  },
+
+  // ============= PAYMENT COMMITMENTS API =============
+  async createOrUpdatePaymentCommitment(customerId: string, commitmentDate: Date, notes?: string): Promise<any> {
+    const token = getToken();
+    const response = await fetch(`${API_URL}/billing/payment-commitments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        customerId,
+        commitmentDate: commitmentDate.toISOString(),
+        notes,
+      }),
+    });
+    return handleResponse(response);
+  },
+
+  async removePaymentCommitment(customerId: string): Promise<any> {
+    const token = getToken();
+    const response = await fetch(`${API_URL}/billing/payment-commitments/${customerId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
+
+  async getActivePaymentCommitments(params?: { customerId?: string; from?: Date; to?: Date }): Promise<any[]> {
+    const token = getToken();
+    const qs = new URLSearchParams();
+    if (params?.customerId) qs.set("customerId", params.customerId);
+    if (params?.from) qs.set("from", params.from.toISOString());
+    if (params?.to) qs.set("to", params.to.toISOString());
+    const url = `${API_URL}/billing/payment-commitments${qs.toString() ? `?${qs.toString()}` : ""}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return handleResponse(response);
   },
 };
 

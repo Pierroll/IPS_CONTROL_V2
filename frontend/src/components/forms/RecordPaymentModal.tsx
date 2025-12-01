@@ -20,6 +20,7 @@ interface RecordPaymentModalProps {
 
 interface PaymentFormData {
   amount: string;               // UI only (bloqueado)
+  discount: string;             // Descuento opcional
   paymentMethod: string;
   walletProvider?: string;
   reference: string;
@@ -30,6 +31,7 @@ interface PaymentFormData {
 const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpen = true, onClose, onPaymentRecorded }) => {
   const [formData, setFormData] = useState<PaymentFormData>({
     amount: "",
+    discount: "0.00",
     paymentMethod: "CASH",
     reference: "",
     paymentDate: new Date().toISOString().split("T")[0],
@@ -43,11 +45,20 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpe
     return Number.isFinite(raw) ? raw : 0;
   }, [customer]);
 
+  // ✅ Calcular monto final después del descuento
+  const finalAmount = useMemo(() => {
+    const amount = currentBalance;
+    const discount = Number(formData.discount) || 0;
+    const final = Math.max(0, amount - discount);
+    return final;
+  }, [currentBalance, formData.discount]);
+
   // ✅ Al abrir/cambiar cliente, precargar el monto y bloquear edición
   useEffect(() => {
     setFormData((prev) => ({
       ...prev,
       amount: currentBalance.toFixed(2),
+      discount: "0.00",
     }));
   }, [currentBalance, customer?.id, isOpen]);
 
@@ -72,9 +83,22 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpe
 
       // ✅ Tomamos SIEMPRE el saldo actual (no el valor del input)
       const payAmount = Number(currentBalance.toFixed(2));
+      const discountAmount = Number(formData.discount) || 0;
 
       if (payAmount <= 0) {
         throw new Error("El cliente no presenta saldo pendiente por pagar.");
+      }
+
+      if (discountAmount < 0) {
+        throw new Error("El descuento no puede ser negativo.");
+      }
+
+      if (discountAmount > payAmount) {
+        throw new Error("El descuento no puede ser mayor que el monto a pagar.");
+      }
+
+      if (finalAmount <= 0) {
+        throw new Error("El monto final después del descuento debe ser mayor a 0.");
       }
 
       if (formData.paymentMethod === "DIGITAL_WALLET" && !formData.walletProvider) {
@@ -84,6 +108,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpe
       const payload: RecordPaymentPayload = {
         customerId: customer.id,
         amount: payAmount,
+        discount: discountAmount > 0 ? discountAmount : undefined,
         paymentMethod: formData.paymentMethod as
           | "CASH"
           | "BANK_TRANSFER"
@@ -100,8 +125,19 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpe
 
       console.log("Enviando payload a recordPayment:", payload);
 
-      await apiFacade.recordPayment(payload);
-      toast.success(`Pago de S/ ${payAmount.toFixed(2)} registrado. El recibo fue enviado al cliente.`);
+      const response = await apiFacade.recordPayment(payload);
+      
+      // Mostrar mensaje según si se envió WhatsApp o no
+      const discountText = discountAmount > 0 ? ` (Descuento: S/ ${discountAmount.toFixed(2)})` : '';
+      if (response.whatsappSent === false) {
+        toast.warning(
+          `Pago de S/ ${finalAmount.toFixed(2)}${discountText} registrado exitosamente, pero no se pudo enviar el mensaje de WhatsApp al cliente. ${response.whatsappError ? `Error: ${response.whatsappError}` : ''}`,
+          { duration: 6000 }
+        );
+      } else {
+        toast.success(`Pago de S/ ${finalAmount.toFixed(2)}${discountText} registrado. El recibo fue enviado al cliente.`);
+      }
+      
       onPaymentRecorded();
       onClose();
     } catch (error: any) {
@@ -135,6 +171,30 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpe
                 readOnly
                 className="col-span-1 sm:col-span-3"
               />
+            </div>
+
+            {/* Descuento */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4 items-start sm:items-center">
+              <Label htmlFor="discount" className="text-sm sm:text-base sm:text-right">Descuento</Label>
+              <div className="col-span-1 sm:col-span-3 space-y-1">
+                <Input
+                  id="discount"
+                  name="discount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={currentBalance}
+                  value={formData.discount}
+                  onChange={handleInputChange}
+                  className="w-full"
+                  placeholder="0.00"
+                />
+                {Number(formData.discount) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Monto final: S/ {finalAmount.toFixed(2)}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Método de pago */}
@@ -224,8 +284,11 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ customer, isOpe
             <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting || currentBalance <= 0} className="w-full sm:w-auto">
-              {isSubmitting ? "Procesando..." : `Registrar Pago (S/ ${currentBalance.toFixed(2)})`}
+            <Button type="submit" disabled={isSubmitting || currentBalance <= 0 || finalAmount <= 0} className="w-full sm:w-auto">
+              {isSubmitting 
+                ? "Procesando..." 
+                : `Registrar Pago (S/ ${finalAmount.toFixed(2)}${Number(formData.discount) > 0 ? ` - Descuento: S/ ${Number(formData.discount).toFixed(2)}` : ''})`
+              }
             </Button>
           </DialogFooter>
         </form>

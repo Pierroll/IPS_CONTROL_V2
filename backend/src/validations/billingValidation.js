@@ -23,12 +23,19 @@ const recordPaymentSchema = Joi.object({
   customerId: Joi.string().uuid().required(),
   invoiceId: Joi.string().uuid().optional(),
   amount: Joi.number().positive().required(), // Mantener positive, el frontend ya valida > 0
+  discount: Joi.number().min(0).default(0), // Descuento opcional, mínimo 0
   paymentMethod: Joi.string().valid('CASH', 'BANK_TRANSFER', 'CREDIT_CARD', 'DEBIT_CARD', 'CHECK', 'DIGITAL_WALLET').required(),
   walletProvider: Joi.string().optional().allow(''), // Añadido
   reference: Joi.string().optional().allow(''),
   paymentDate: Joi.date().iso().required(),
   notes: Joi.string().optional().allow(''),
   createdBy: Joi.string().uuid().required(), // Añadido
+}).custom((value, helpers) => {
+  // Validar que el descuento no sea mayor que el monto
+  if (value.discount && value.discount > value.amount) {
+    return helpers.error('any.invalid', { message: 'El descuento no puede ser mayor que el monto a pagar' });
+  }
+  return value;
 });
 
 const updateBillingAccountSchema = Joi.object({

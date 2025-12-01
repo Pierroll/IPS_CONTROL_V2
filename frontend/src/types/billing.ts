@@ -13,6 +13,8 @@ export interface BillingAccount {
   lastPaymentDate?: Date | null;
   billingCycle: number;
   autoSuspend: boolean;
+  paymentCommitmentDate?: Date | null;
+  paymentCommitmentNotes?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -86,6 +88,7 @@ export interface RecordPaymentPayload {
   customerId: string;
   invoiceId?: string | null;
   amount: number;
+  discount?: number; // Descuento opcional
   paymentMethod: PaymentMethod;
   walletProvider?: string | null;
   reference?: string | null;

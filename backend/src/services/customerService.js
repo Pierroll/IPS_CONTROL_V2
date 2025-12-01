@@ -465,9 +465,14 @@ const getCustomersWithDetails = async (filters = {}) => {
     whereClause.name = { contains: search, mode: 'insensitive' };
   }
 
-  // Filtro por MikroTik (basado en las notas que contienen información del router)
+  // Filtro por MikroTik (basado en la relación pppoeAccounts -> device)
   if (routerId) {
-    whereClause.notes = { contains: `routerId:${routerId}`, mode: 'insensitive' };
+    whereClause.pppoeAccounts = {
+      some: {
+        deviceId: routerId,
+        deletedAt: null
+      }
+    };
   }
 
   const customers = await prisma.customer.findMany({
@@ -492,6 +497,23 @@ const getCustomersWithDetails = async (filters = {}) => {
           startDate: true,
           plan: { select: { name: true, monthlyPrice: true, mikrotikProfileName: true } },
         },
+      },
+      pppoeAccounts: {
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          username: true,
+          profile: true,
+          deviceId: true,
+          device: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              ipAddress: true
+            }
+          }
+        }
       },
       billingAccount: { 
         select: { 

@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Customer } from "@/types/customer";
 import { cn } from "@/lib/utils";
-import { Calendar, MapPin, Router, Phone, DollarSign, FileText, History, CreditCard, Clock } from "lucide-react";
+import { Calendar, MapPin, Router, Phone, DollarSign, FileText, History, CreditCard, Clock, Handshake } from "lucide-react";
 
 interface EnhancedReceiptsTableProps {
   customers: Customer[];
@@ -15,6 +15,7 @@ interface EnhancedReceiptsTableProps {
   onAdvancePaymentClick: (customer: Customer) => void;
   onAdvancePaymentHistoryClick: (customerId: string) => void;
   onPaymentHistoryClick: (customer: Customer) => void;
+  onPaymentCommitmentClick?: (customer: Customer) => void;
 }
 
 export default function EnhancedReceiptsTable({ 
@@ -24,7 +25,8 @@ export default function EnhancedReceiptsTable({
   onViewHistory,
   onAdvancePaymentClick,
   onAdvancePaymentHistoryClick,
-  onPaymentHistoryClick
+  onPaymentHistoryClick,
+  onPaymentCommitmentClick
 }: EnhancedReceiptsTableProps) {
   
   // Función para determinar el color de la fila según el estado de pago
@@ -300,6 +302,22 @@ export default function EnhancedReceiptsTable({
                       <History className="h-3 w-3 sm:mr-1" />
                       <span className="hidden sm:inline">Historial</span>
                     </Button>
+                    {onPaymentCommitmentClick && customer.billingAccount && customer.billingAccount.balance > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onPaymentCommitmentClick(customer)}
+                        className="text-xs h-7 sm:h-8 px-2 sm:px-3 bg-orange-50 hover:bg-orange-100 text-orange-700"
+                        title={customer.billingAccount.paymentCommitmentDate 
+                          ? `Compromiso hasta: ${new Date(customer.billingAccount.paymentCommitmentDate).toLocaleDateString('es-PE')}`
+                          : "Crear compromiso de pago"}
+                      >
+                        <Handshake className="h-3 w-3 sm:mr-1" />
+                        <span className="hidden sm:inline">
+                          {customer.billingAccount.paymentCommitmentDate ? "Compromiso" : "Compromiso"}
+                        </span>
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

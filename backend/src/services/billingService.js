@@ -258,12 +258,21 @@ const recordPayment = async (raw, createdBy) => {
     customerId,
     invoiceId,
     amount,
+    discount = 0,
     paymentMethod,
     reference,
     paymentDate,
     notes,
     walletProvider,
   } = value;
+
+  // Calcular monto final después del descuento
+  const discountAmount = num(discount) || 0;
+  const finalAmount = Math.max(0, num(amount) - discountAmount);
+  
+  if (finalAmount <= 0) {
+    throw new Error('El monto final después del descuento debe ser mayor a 0');
+  }
 
   const ba = await ensureBillingAccount(customerId);
 
@@ -275,15 +284,17 @@ const recordPayment = async (raw, createdBy) => {
     targetInvoice = invoiceId ? await tx.invoice.findUnique({ where: { id: invoiceId } }) : null;
 
     if (invoiceId && !targetInvoice) throw new Error('Factura no encontrada');
-    if (targetInvoice && num(amount) > num(targetInvoice.balanceDue)) {
-      throw new Error(`El pago (${amount}) excede el saldo de la factura (${targetInvoice.balanceDue})`);
+    if (targetInvoice && num(finalAmount) > num(targetInvoice.balanceDue)) {
+      throw new Error(`El pago (${finalAmount}) excede el saldo de la factura (${targetInvoice.balanceDue})`);
     }
-    if (!invoiceId && num(amount) > num(ba.balance)) {
-      throw new Error(`El pago (${amount}) excede el saldo de la cuenta (${ba.balance})`);
+    if (!invoiceId && num(finalAmount) > num(ba.balance)) {
+      throw new Error(`El pago (${finalAmount}) excede el saldo de la cuenta (${ba.balance})`);
     }
 
     if (!targetInvoice) {
       // Crear una factura "contenedora" del pago (compatibilidad con tu flujo)
+      // El balanceDue debe ser el amount original, no el finalAmount
+      // porque el descuento se aplica al momento del pago
       targetInvoice = await tx.invoice.create({
         data: {
           customerId,
@@ -292,24 +303,28 @@ const recordPayment = async (raw, createdBy) => {
           periodEnd: new Date(),
           subtotal: num(amount),
           tax: 0,
-          discount: 0,
-          total: num(amount),
-          balanceDue: num(amount),
+          discount: discountAmount,
+          total: num(amount), // Total es el monto original
+          balanceDue: num(amount), // BalanceDue inicial es el monto original
           issueDate: new Date(),
           dueDate: dayjs().add(DUE_DAYS, 'day').toDate(),
           status: 'PENDING',
           currency: DEFAULT_CURRENCY,
-          notes: 'Factura generada automáticamente por pago',
+          notes: discountAmount > 0 
+            ? `Factura generada automáticamente por pago. Descuento aplicado: S/ ${discountAmount.toFixed(2)}`
+            : 'Factura generada automáticamente por pago',
         },
       });
 
       await tx.invoiceItem.create({
         data: {
           invoiceId: targetInvoice.id,
-          description: `Pago registrado el ${new Date().toLocaleDateString('es-PE')}`,
+          description: discountAmount > 0
+            ? `Pago registrado el ${new Date().toLocaleDateString('es-PE')} (Descuento: S/ ${discountAmount.toFixed(2)})`
+            : `Pago registrado el ${new Date().toLocaleDateString('es-PE')}`,
           quantity: 1,
           unitPrice: num(amount),
-          total: num(amount),
+          total: num(amount), // Total del item es el monto original
         },
       });
     }
@@ -320,24 +335,37 @@ const recordPayment = async (raw, createdBy) => {
       finalReference = `${walletProvider}${reference ? ' - ' + reference : ''}`;
     }
 
+    // Construir notas con información del descuento si aplica
+    let paymentNotes = notes || '';
+    if (discountAmount > 0) {
+      paymentNotes = paymentNotes 
+        ? `${paymentNotes}\nDescuento aplicado: S/ ${discountAmount.toFixed(2)}`
+        : `Descuento aplicado: S/ ${discountAmount.toFixed(2)}`;
+    }
+
     payment = await tx.payment.create({
       data: {
         customerId,
         billingAccountId: ba.id,
         invoiceId: targetInvoice.id,
-        amount: num(amount),
+        amount: num(finalAmount), // Usar el monto final después del descuento
         currency: DEFAULT_CURRENCY,
         paymentMethod,
         reference: finalReference,
         status: 'COMPLETED',
         paymentDate: toDate(paymentDate || new Date(), 'paymentDate'),
         processedDate: new Date(),
-        notes,
+        notes: paymentNotes,
         createdBy: createdBy || 'SYSTEM',
       },
     });
 
-    const remaining = num(targetInvoice.balanceDue) - num(amount);
+    // Calcular el remaining: si hay descuento, el balanceDue se reduce por el amount original
+    // porque el descuento es una reducción del monto a pagar, pero el balance debe quedar en 0
+    const remaining = discountAmount > 0 
+      ? num(targetInvoice.balanceDue) - num(amount) // Si hay descuento, reducir por el monto original
+      : num(targetInvoice.balanceDue) - num(finalAmount); // Si no hay descuento, reducir por el monto final
+    
     let newStatus = targetInvoice.status;
     if (remaining === 0) newStatus = 'PAID';
     else if (remaining > 0 && remaining < num(targetInvoice.total)) newStatus = 'PARTIAL';
@@ -347,10 +375,12 @@ const recordPayment = async (raw, createdBy) => {
       data: { balanceDue: remaining, status: newStatus },
     });
 
+    // El balance de la cuenta debe reducirse por el amount original (no el finalAmount)
+    // porque el descuento es una reducción del monto a pagar, pero la deuda se cancela completamente
     await tx.billingAccount.update({
       where: { id: ba.id },
       data: {
-        balance: { decrement: num(amount) },
+        balance: { decrement: num(amount) }, // Reducir por el monto original, no el final
         lastPaymentDate: toDate(paymentDate || new Date(), 'paymentDate'),
       },
     });
@@ -360,8 +390,10 @@ const recordPayment = async (raw, createdBy) => {
         customerId,
         billingAccountId: ba.id,
         type: 'CREDIT',
-        amount: num(amount),
-        description: `Pago ${payment.paymentNumber || payment.id} aplicado a ${targetInvoice.invoiceNumber || targetInvoice.id}`,
+        amount: num(finalAmount), // Usar el monto final después del descuento
+        description: discountAmount > 0
+          ? `Pago ${payment.paymentNumber || payment.id} aplicado a ${targetInvoice.invoiceNumber || targetInvoice.id} (Descuento: S/ ${discountAmount.toFixed(2)})`
+          : `Pago ${payment.paymentNumber || payment.id} aplicado a ${targetInvoice.invoiceNumber || targetInvoice.id}`,
         invoiceId: targetInvoice.id,
         paymentId: payment.id,
         transactionDate: toDate(paymentDate || new Date(), 'paymentDate'),
@@ -380,11 +412,46 @@ const recordPayment = async (raw, createdBy) => {
     data: { receiptUrl },
   });
 
-  await sendWhatsAppWithDocument(
-    customerId,
-    `Pago registrado: S/ ${num(amount).toFixed(2)} (${payment.paymentNumber || payment.id}). Adjuntamos su recibo.`,
-    filePath
-  );
+  // ✅ Intentar enviar WhatsApp, pero no fallar el pago si falla
+  let whatsappSent = false;
+  let whatsappError = null;
+  try {
+    await sendWhatsAppWithDocument(
+      customerId,
+      `Pago registrado: S/ ${num(amount).toFixed(2)} (${payment.paymentNumber || payment.id}). Adjuntamos su recibo.`,
+      filePath
+    );
+    whatsappSent = true;
+    console.log(`✅ Mensaje de WhatsApp enviado exitosamente para el pago ${payment.paymentNumber || payment.id}`);
+  } catch (error) {
+    // No fallar el pago si el envío de WhatsApp falla, solo loguear y guardar el error
+    whatsappSent = false;
+    whatsappError = error.message || 'Error desconocido al enviar mensaje';
+    console.error(`⚠️ Error al enviar mensaje de WhatsApp para el pago ${payment.paymentNumber || payment.id}:`, whatsappError);
+    
+    // Registrar el error en el log de mensajes
+    try {
+      const phone = await prisma.customer.findUnique({
+        where: { id: customerId },
+        select: { phone: true },
+      });
+      
+      await prisma.messageLog.create({
+        data: {
+          customerId,
+          invoiceId: targetInvoice.id,
+          channel: 'WHATSAPP',
+          messageType: 'PAYMENT_REMINDER',
+          content: `Pago registrado: S/ ${num(amount).toFixed(2)} (${payment.paymentNumber || payment.id}). Adjuntamos su recibo.`,
+          status: 'FAILED',
+          errorMessage: whatsappError,
+          phoneNumber: phone?.phone || null,
+        },
+      });
+    } catch (logError) {
+      console.error(`⚠️ Error al registrar el fallo de WhatsApp en messageLog:`, logError.message);
+    }
+  }
 
   // ✅ Reactivar cliente si está cortado
   try {
@@ -394,10 +461,18 @@ const recordPayment = async (raw, createdBy) => {
     console.error(`⚠️ Error al intentar reactivar cliente ${customerId} después del pago:`, reactivationError.message);
   }
 
-  return prisma.payment.findUnique({
+  const paymentResult = await prisma.payment.findUnique({
     where: { id: payment.id },
     include: { invoice: true },
   });
+
+  // Agregar información sobre el envío de WhatsApp al resultado
+  paymentResult.whatsappSent = whatsappSent;
+  if (!whatsappSent && whatsappError) {
+    paymentResult.whatsappError = whatsappError;
+  }
+
+  return paymentResult;
 };
 
 /* =========================
@@ -454,7 +529,29 @@ const listPayments = async (rawQuery = {}) => {
       },
     },
     orderBy: [{ paymentDate: 'desc' }],
-    include: { invoice: true },
+    include: { 
+      invoice: {
+        select: {
+          id: true,
+          invoiceNumber: true,
+          total: true,
+        }
+      },
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        }
+      },
+      creator: {
+        select: {
+          id: true,
+          name: true,
+        }
+      }
+    },
+    // El campo 'status' se incluye automáticamente ya que es parte del modelo Payment
   });
 };
 
@@ -748,6 +845,99 @@ const deletePayment = async (paymentId) => {
   return result;
 };
 
+// Anular un pago (marcar como anulado pero mantener el registro)
+const voidPayment = async (paymentId, reason) => {
+  console.log('🚫 Anulando pago:', paymentId, 'Razón:', reason);
+  
+  // Buscar el pago con sus relaciones
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: {
+      invoice: true,
+      customer: {
+        include: {
+          billingAccount: true
+        }
+      }
+    }
+  });
+
+  if (!payment) {
+    throw new Error('Pago no encontrado');
+  }
+
+  if (payment.status === 'CANCELLED') {
+    throw new Error('El pago ya está anulado');
+  }
+
+  if (payment.status !== 'COMPLETED') {
+    throw new Error('Solo se pueden anular pagos completados');
+  }
+
+  // Anular el pago y revertir los cambios en una transacción
+  const result = await prisma.$transaction(async (tx) => {
+    // Revertir el saldo de la cuenta de facturación
+    await tx.billingAccount.update({
+      where: { id: payment.billingAccountId },
+      data: {
+        balance: {
+          increment: payment.amount
+        }
+      }
+    });
+
+    // Revertir el estado de la factura si existe
+    if (payment.invoiceId && payment.invoice) {
+      const newBalanceDue = num(payment.invoice.balanceDue) + num(payment.amount);
+      let newStatus = payment.invoice.status;
+      
+      if (newBalanceDue >= num(payment.invoice.total)) {
+        newStatus = 'PENDING';
+      } else if (newBalanceDue > 0) {
+        newStatus = 'PARTIAL';
+      }
+
+      await tx.invoice.update({
+        where: { id: payment.invoiceId },
+        data: {
+          balanceDue: newBalanceDue,
+          status: newStatus
+        }
+      });
+    }
+
+    // Crear entrada en el ledger para registrar la anulación
+    await tx.ledgerEntry.create({
+      data: {
+        customerId: payment.customerId,
+        billingAccountId: payment.billingAccountId,
+        type: 'DEBIT',
+        amount: payment.amount,
+        description: `Pago anulado - ${payment.paymentNumber || payment.id}${reason ? ` - Razón: ${reason}` : ''}`,
+        invoiceId: payment.invoiceId,
+        paymentId: payment.id,
+        transactionDate: new Date()
+      }
+    });
+
+    // Marcar el pago como anulado (no eliminarlo)
+    const updatedPayment = await tx.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: 'CANCELLED',
+        notes: payment.notes 
+          ? `${payment.notes}\n[ANULADO] ${reason || 'Sin razón especificada'} - ${new Date().toLocaleString('es-PE')}`
+          : `[ANULADO] ${reason || 'Sin razón especificada'} - ${new Date().toLocaleString('es-PE')}`
+      }
+    });
+
+    return updatedPayment;
+  });
+
+  console.log('✅ Pago anulado:', paymentId);
+  return result;
+};
+
 /* =========================
  * Exports
  * ========================= */
@@ -761,6 +951,7 @@ module.exports = {
   updateBillingAccount,
   listBillingAccounts,
   generateMonthlyDebt, // NUEVO
-  deletePayment, // NUEVO
+  deletePayment,
+  voidPayment,
 };
 

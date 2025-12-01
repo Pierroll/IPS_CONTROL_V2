@@ -1,8 +1,12 @@
 export interface PppoeAccount {
+  id?: string;
   username: string;
   profile?: string;
+  deviceId?: string;
   device?: {
+    id: string;
     name: string;
+    code?: string;
     ipAddress: string;
   };
 }
