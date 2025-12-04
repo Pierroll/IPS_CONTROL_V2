@@ -467,29 +467,26 @@ model QueueRule {
 }
 
 model BillingAccount {
-  id                      String        @id @default(uuid())
-  customerId              String        @unique @map("customer_id")
-  balance                 Decimal       @default(0) @db.Decimal(10, 2)
-  creditLimit             Decimal?      @map("credit_limit") @db.Decimal(10, 2)
-  status                  BillingStatus @default(ACTIVE)
-  suspendedAt             DateTime?     @map("suspended_at")
-  lastPaymentDate         DateTime?     @map("last_payment_date")
-  billingCycle            Int           @default(1) @map("billing_cycle")
-  autoSuspend             Boolean       @default(true) @map("auto_suspend")
-  paymentCommitmentDate   DateTime?     @map("payment_commitment_date")
-  paymentCommitmentNotes  String?       @map("payment_commitment_notes")
-  createdAt               DateTime      @default(now()) @map("created_at")
-  updatedAt               DateTime      @updatedAt @map("updated_at")
-  customer                Customer      @relation(fields: [customerId], references: [id])
-  invoices                Invoice[]
-  ledgerEntries           LedgerEntry[]
-  payments                Payment[]
-  advancePayments         AdvancePayment[]
+  id              String        @id @default(uuid())
+  customerId      String        @unique @map("customer_id")
+  balance         Decimal       @default(0) @db.Decimal(10, 2)
+  creditLimit     Decimal?      @map("credit_limit") @db.Decimal(10, 2)
+  status          BillingStatus @default(ACTIVE)
+  suspendedAt     DateTime?     @map("suspended_at")
+  lastPaymentDate DateTime?     @map("last_payment_date")
+  billingCycle    Int           @default(1) @map("billing_cycle")
+  autoSuspend     Boolean       @default(true) @map("auto_suspend")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  invoices        Invoice[]
+  ledgerEntries   LedgerEntry[]
+  payments        Payment[]
+  advancePayments AdvancePayment[]
 
   @@index([customerId])
   @@index([status])
   @@index([balance])
-  @@index([paymentCommitmentDate])
   @@map("billing_accounts")
 }
 

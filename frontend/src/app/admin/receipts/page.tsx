@@ -10,7 +10,6 @@ import RecordPaymentModal from "@/components/forms/RecordPaymentModal";
 import PaymentHistoryModal from "@/components/forms/PaymentHistoryModal";
 import AdvancePaymentModal from "@/components/forms/AdvancePaymentModal";
 import AdvancePaymentHistoryModal from "@/components/forms/AdvancePaymentHistoryModal";
-import PaymentCommitmentModal from "@/components/forms/PaymentCommitmentModal";
 import apiFacade from "@/lib/apiFacade";
 import { Customer } from "@/types/customer";
 import { User } from "@/types/user";
@@ -33,7 +32,6 @@ export default function ReceiptsPage() {
   const [showAdvancePaymentModal, setShowAdvancePaymentModal] = useState(false);
   const [showAdvancePaymentHistoryModal, setShowAdvancePaymentHistoryModal] = useState(false);
   const [showPaymentHistoryModal, setShowPaymentHistoryModal] = useState(false);
-  const [showPaymentCommitmentModal, setShowPaymentCommitmentModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [cuttingAll, setCuttingAll] = useState(false);
 
@@ -156,17 +154,19 @@ export default function ReceiptsPage() {
     }
 
 
-    // Filtro por MikroTik (basado en la relación pppoeAccounts -> device)
+    // Filtro por MikroTik (basado en las notas)
     if (advancedFilters.routerId && advancedFilters.routerId !== "all") {
       filtered = filtered.filter(customer => {
-        // Buscar en las cuentas PPPoE del cliente
-        if (!customer.pppoeAccounts || customer.pppoeAccounts.length === 0) {
-          return false;
-        }
-        // Verificar si alguna cuenta PPPoE tiene el deviceId que buscamos
-        return customer.pppoeAccounts.some((account: any) => 
-          account.deviceId === advancedFilters.routerId || 
-          account.device?.id === advancedFilters.routerId
+        if (!customer.notes) return false;
+        // Buscar diferentes patrones de router en las notas
+        const routerPatterns = [
+          `routerId:${advancedFilters.routerId}`,
+          `Router: ${advancedFilters.routerId}`,
+          `MikroTik: ${advancedFilters.routerId}`,
+          advancedFilters.routerId
+        ];
+        return routerPatterns.some(pattern => 
+          customer.notes.toLowerCase().includes(pattern.toLowerCase())
         );
       });
     }
@@ -269,11 +269,6 @@ export default function ReceiptsPage() {
   const handlePaymentHistoryClick = (customer: Customer) => {
     setSelectedCustomer(customer);
     setShowPaymentHistoryModal(true);
-  };
-
-  const handlePaymentCommitmentClick = (customer: Customer) => {
-    setSelectedCustomer(customer);
-    setShowPaymentCommitmentModal(true);
   };
 
   const handleAdvancePaymentCreated = () => {
@@ -402,7 +397,6 @@ export default function ReceiptsPage() {
               onAdvancePaymentClick={handleAdvancePaymentClick}
               onAdvancePaymentHistoryClick={handleAdvancePaymentHistoryClick}
               onPaymentHistoryClick={handlePaymentHistoryClick}
-              onPaymentCommitmentClick={handlePaymentCommitmentClick}
             />
 
             {/* Paginación minimal al pie (solo cuando filter=all) */}
@@ -486,20 +480,6 @@ export default function ReceiptsPage() {
               setSelectedCustomer(null);
               setShowPaymentHistoryModal(false);
               loadData({ page, filter }); // Recargar datos después de cerrar
-            }}
-          />
-        )}
-
-        {selectedCustomer && showPaymentCommitmentModal && (
-          <PaymentCommitmentModal
-            customer={selectedCustomer}
-            isOpen={showPaymentCommitmentModal}
-            onClose={() => {
-              setSelectedCustomer(null);
-              setShowPaymentCommitmentModal(false);
-            }}
-            onCommitmentCreated={() => {
-              loadData({ page, filter }); // Recargar datos después de crear/actualizar compromiso
             }}
           />
         )}

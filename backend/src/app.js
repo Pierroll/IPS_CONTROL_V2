@@ -10,7 +10,6 @@ const path = require('path');
 require('./jobs/billingJob');
 require('./jobs/dunningJob');
 require('./jobs/paymentJob');
-require('./jobs/paymentCommitmentJob');
 
 dotenv.config();
 
@@ -46,7 +45,6 @@ app.use('/api/routers', require('./routes/routers'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/mikrotik-profiles', require('./routes/mikrotikProfiles'));
 app.use('/api/pppoe', require('./routes/pppoe'));
-app.use('/api/reports', require('./routes/reports'));
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Algo salió mal' });

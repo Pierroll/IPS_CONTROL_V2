@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Filter, X, MapPin, Router, Calendar } from "lucide-react";
 import apiFacade from "@/lib/apiFacade";
-import { toast } from "sonner";
 
 interface AdvancedBillingFiltersProps {
   onFiltersChange: (filters: BillingFilters) => void;
@@ -41,33 +40,14 @@ export default function AdvancedBillingFilters({
     const loadFilterData = async () => {
       setLoading(true);
       try {
+
         // Cargar routers
         const token = localStorage.getItem("access_token");
         if (token) {
           console.log("🔍 Cargando routers con token:", token.substring(0, 20) + "...");
           const routersResponse = await apiFacade.getRouters(token);
           console.log("📡 Respuesta de routers:", routersResponse);
-          
-          // getRouters devuelve directamente un array o un objeto con data
-          let routersData: Array<{id: string, name: string}> = [];
-          if (Array.isArray(routersResponse)) {
-            // Si es un array directo, mapear a {id, name}
-            routersData = routersResponse.map((r: any) => ({
-              id: r.id || r.deviceId || '',
-              name: r.name || r.code || 'Sin nombre'
-            })).filter((r: any) => r.id); // Filtrar los que no tienen id
-          } else if (routersResponse && routersResponse.data && Array.isArray(routersResponse.data)) {
-            routersData = routersResponse.data.map((r: any) => ({
-              id: r.id || r.deviceId || '',
-              name: r.name || r.code || 'Sin nombre'
-            })).filter((r: any) => r.id);
-          } else if (routersResponse && routersResponse.success && Array.isArray(routersResponse.data)) {
-            routersData = routersResponse.data.map((r: any) => ({
-              id: r.id || r.deviceId || '',
-              name: r.name || r.code || 'Sin nombre'
-            })).filter((r: any) => r.id);
-          }
-          
+          const routersData = routersResponse.data || [];
           console.log("🖥️ Routers cargados:", routersData);
           setRouters(routersData);
         } else {
@@ -75,7 +55,18 @@ export default function AdvancedBillingFilters({
         }
       } catch (error) {
         console.error("Error cargando datos de filtros:", error);
-        toast.error("Error al cargar los routers para el filtro");
+        // Fallback: cargar distritos desde clientes si falla el diccionario
+        try {
+          const customersResponse = await apiFacade.getCustomersWithDetails({});
+          const uniqueDistricts = [...new Set(
+            customersResponse.data
+              ?.map((c: any) => c.district)
+              .filter(Boolean) || []
+          )].sort();
+          setDistricts(uniqueDistricts);
+        } catch (fallbackError) {
+          console.error("Error en fallback de distritos:", fallbackError);
+        }
       } finally {
         setLoading(false);
       }

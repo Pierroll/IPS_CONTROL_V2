@@ -252,9 +252,13 @@ function generateReminderMessageWA(customer, invoice) {
   const name = (customer?.name || 'Cliente').toUpperCase();
   const invoiceNumber = invoice?.invoiceNumber || 'N/A';
   const total = Number(invoice?.total || 0).toFixed(2);
-  const dueMonth = new Date(invoice.periodStart)
-    .toLocaleString('es-PE', { month: 'long', year: 'numeric' })
-    .toUpperCase();
+  // Usar zona horaria de Lima para asegurar que el mes se muestre correctamente
+  const periodStartDate = new Date(invoice.periodStart);
+  const dueMonth = periodStartDate.toLocaleString('es-PE', { 
+    month: 'long', 
+    year: 'numeric',
+    timeZone: 'America/Lima'
+  }).toUpperCase();
 
   const billingDay = 25;
   const cutoffDay = 1;

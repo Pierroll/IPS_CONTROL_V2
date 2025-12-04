@@ -7,10 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Calendar, DollarSign, CreditCard, Trash2, Download, XCircle } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Calendar, DollarSign, CreditCard, Trash2, Download } from "lucide-react";
 import apiFacade from "@/lib/apiFacade";
 import { Customer } from "@/types/customer";
 
@@ -39,14 +36,9 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [voidingId, setVoidingId] = useState<string | null>(null);
-  const [showVoidModal, setShowVoidModal] = useState(false);
-  const [voidReason, setVoidReason] = useState("");
 
   useEffect(() => {
-    console.log("🔔 PaymentHistoryModal useEffect:", { isOpen, customer: customer?.id, customerName: customer?.name });
     if (isOpen && customer) {
-      console.log("✅ Abriendo modal de historial de pagos para cliente:", customer.name);
       loadPayments();
     }
   }, [isOpen, customer]);
@@ -57,22 +49,7 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
     setLoading(true);
     try {
       const response = await apiFacade.listPayments({ customerId: customer.id });
-      console.log("📋 Pagos cargados:", response);
-      console.log("📊 Estados de pagos:", response?.map((p: any) => ({ 
-        id: p.id, 
-        status: p.status, 
-        statusType: typeof p.status,
-        hasStatus: 'status' in p,
-        allKeys: Object.keys(p)
-      })));
-      
-      // Asegurar que todos los pagos tengan un status
-      const paymentsWithStatus = (response || []).map((p: any) => ({
-        ...p,
-        status: p.status || 'COMPLETED' // Si no tiene status, asumir COMPLETED
-      }));
-      
-      setPayments(paymentsWithStatus);
+      setPayments(response || []);
     } catch (error) {
       console.error("Error cargando pagos:", error);
       toast.error("Error al cargar el historial de pagos");
@@ -99,33 +76,6 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
     }
   };
 
-  const handleVoidPayment = (paymentId: string) => {
-    setVoidingId(paymentId);
-    setVoidReason("");
-    setShowVoidModal(true);
-  };
-
-  const confirmVoidPayment = async () => {
-    if (!voidingId) return;
-
-    if (!voidReason.trim()) {
-      toast.error("Por favor, ingresa una razón para anular el pago");
-      return;
-    }
-
-    try {
-      await apiFacade.voidPayment(voidingId, voidReason);
-      toast.success("Pago anulado exitosamente");
-      setShowVoidModal(false);
-      setVoidReason("");
-      setVoidingId(null);
-      loadPayments(); // Recargar la lista
-    } catch (error: any) {
-      console.error("Error anulando pago:", error);
-      toast.error(error.message || "Error al anular el pago");
-    }
-  };
-
   const getPaymentMethodLabel = (method: string) => {
     const methods: { [key: string]: string } = {
       CASH: "Efectivo",
@@ -138,12 +88,6 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
       OTHER: "Otro"
     };
     return methods[method] || method;
-  };
-
-  const handleCancelVoid = () => {
-    setShowVoidModal(false);
-    setVoidReason("");
-    setVoidingId(null);
   };
 
   const getStatusBadge = (status: string) => {
@@ -162,7 +106,6 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
   if (!customer) return null;
 
   return (
-    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
@@ -180,43 +123,26 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
               <p className="text-gray-600">No hay pagos registrados</p>
             </div>
           ) : (
-            payments.map((payment) => {
-              // Asegurar que el pago tenga status
-              const paymentStatus = payment.status || 'COMPLETED';
-              
-              return (
+            payments.map((payment) => (
               <Card key={payment.id} className="w-full">
                 <CardHeader className="pb-3">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <CardTitle className="text-base sm:text-lg">
                       Pago #{payment.id.slice(-8)}
                     </CardTitle>
-                    <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-                      {getStatusBadge(paymentStatus)}
-                      {/* DEBUG: Mostrar siempre los botones para verificar que se renderizan */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          console.log("🖱️ Click en botón Anular para pago:", payment.id);
-                          handleVoidPayment(payment.id);
-                        }}
-                        disabled={voidingId === payment.id || paymentStatus.toUpperCase() === 'CANCELLED'}
-                        className="text-orange-600 hover:text-orange-700 border-orange-300 hover:bg-orange-50"
-                      >
-                        <XCircle className="h-4 w-4 mr-1" />
-                        <span>Anular</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeletePayment(payment.id)}
-                        disabled={deletingId === payment.id || paymentStatus.toUpperCase() === 'CANCELLED'}
-                        className="text-red-600 hover:text-red-700 border-red-300 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        <span>Eliminar</span>
-                      </Button>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      {getStatusBadge(payment.status)}
+                      {payment.status === 'COMPLETED' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeletePayment(payment.id)}
+                          disabled={deletingId === payment.id}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -291,8 +217,7 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
                   )}
                 </CardContent>
               </Card>
-              );
-            })
+            ))
           )}
         </div>
 
@@ -303,42 +228,5 @@ export default function PaymentHistoryModal({ isOpen, onClose, customer }: Payme
         </DialogFooter>
       </DialogContent>
     </Dialog>
-
-    {/* Modal para anular pago - Renderizado fuera del modal padre para evitar conflictos de accesibilidad */}
-    <Dialog open={showVoidModal} onOpenChange={setShowVoidModal}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Anular Pago</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            ¿Estás seguro de que quieres anular este pago? Esta acción revertirá los efectos del pago pero mantendrá el registro para auditoría.
-          </p>
-          <div className="space-y-2">
-            <Label htmlFor="voidReason">Razón de anulación *</Label>
-            <Textarea
-              id="voidReason"
-              placeholder="Ej: Error en el registro, pago duplicado, etc."
-              value={voidReason}
-              onChange={(e) => setVoidReason(e.target.value)}
-              rows={3}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancelVoid}>
-            Cancelar
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={confirmVoidPayment}
-            disabled={!voidReason.trim()}
-          >
-            Anular Pago
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  </>
   );
 }

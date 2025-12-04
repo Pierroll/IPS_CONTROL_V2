@@ -34,18 +34,9 @@ const recordPayment = async (req, res) => {
   try {
     console.log("📥 Body recibido en recordPayment:", req.body);
     const payment = await billingService.recordPayment(req.body, req.user.userId);
-    
-    // Construir mensaje según si se envió WhatsApp o no
-    let message = 'Pago registrado exitosamente';
-    if (payment.whatsappSent === false) {
-      message = 'Pago registrado exitosamente, pero no se pudo enviar el mensaje de WhatsApp al cliente';
-    }
-    
     res.status(201).json({ 
-      message: message,
-      payment: payment,
-      whatsappSent: payment.whatsappSent !== undefined ? payment.whatsappSent : true,
-      whatsappError: payment.whatsappError || null
+    message: 'Pago registrado exitosamente',
+    payment: payment 
     });
   } catch (error) {
   console.error("❌ Error completo en recordPayment:", error);
@@ -130,23 +121,6 @@ const deletePayment = async (req, res) => {
   }
 };
 
-const voidPayment = async (req, res) => {
-  try {
-    console.log('🚫 Controller voidPayment - paymentId:', req.params.paymentId);
-    console.log('🚫 Controller voidPayment - user:', req.user);
-    
-    const { paymentId } = req.params;
-    const { reason } = req.body;
-    
-    const result = await billingService.voidPayment(paymentId, reason);
-    console.log('✅ Controller voidPayment - success:', result.id);
-    res.json({ message: 'Pago anulado exitosamente', payment: result });
-  } catch (error) {
-    console.error('❌ Error en voidPayment:', error);
-    res.status(400).json({ error: error.message });
-  }
-};
-
 module.exports = {
   createInvoice,
   listInvoices,
@@ -158,6 +132,5 @@ module.exports = {
   listBillingAccounts,
   downloadInvoicePdf,
   generateMonthlyDebt,
-  deletePayment,
-  voidPayment
+  deletePayment
 };
