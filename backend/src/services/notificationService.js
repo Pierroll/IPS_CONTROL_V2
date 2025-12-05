@@ -9,14 +9,11 @@ const prisma = require('../models/prismaClient');
 const { postJson } = require('../utils/httpClient');
 const Joi = require('joi');
 
-const BASE = process.env.WHATSAPP_API_URL || 'http://localhost:3005';
-const API_KEY = process.env.WHATSAPP_API_KEY || '22c746590447e7311801c22c4d53736d569843ebf6da3cf8498354399fe2f2e2';
+// Nueva API de WhatsApp (whatsapp-web.js) - puerto 3001 por defecto
+const BASE = process.env.WHATSAPP_API_URL || 'http://localhost:3001';
 
-if (!API_KEY) {
-  console.error('⚠️  WHATSAPP_API_KEY no está configurado en .env');
-} else {
-  console.log('✅ WHATSAPP_API_KEY cargado correctamente');
-}
+// La nueva API no requiere API_KEY
+console.log('✅ WhatsApp API URL configurado:', BASE);
 
 const getNotificationsSchema = Joi.object({
   customerId: Joi.string().uuid().optional(),
@@ -96,7 +93,6 @@ async function sendPaymentReminder(customerId, message, invoiceId) {
       to: phone, 
       message: message 
     }, {
-      'X-API-Key': API_KEY,
       'Content-Type': 'application/json'
     });
 
@@ -162,7 +158,6 @@ async function sendWhatsAppWithDocument(customerId, message, filePath) {
     path: filePath,
     message: message,
   }, {
-    'X-API-Key': API_KEY,
     'Content-Type': 'application/json'
   });
   
