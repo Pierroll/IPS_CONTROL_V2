@@ -39,9 +39,18 @@ const updateTicket = async (req, res) => {
 
 const updateTicketStatus = async (req, res) => {
   try {
+    console.log("📥 updateTicketStatus - Body recibido:", JSON.stringify(req.body, null, 2));
+    console.log("📥 updateTicketStatus - Params:", req.params);
+    console.log("📥 updateTicketStatus - Status:", req.body.status);
+    
+    if (!req.body || !req.body.status) {
+      return res.status(400).json({ error: 'El campo "status" es requerido en el body' });
+    }
+    
     const ticket = await ticketService.updateTicketStatus(req.params.id, req.body.status, req.user.userId);
     res.json({ message: 'Estado del ticket actualizado', ticket });
   } catch (error) {
+    console.error("❌ Error en updateTicketStatus:", error);
     res.status(400).json({ error: error.message });
   }
 };

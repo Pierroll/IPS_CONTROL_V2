@@ -21,14 +21,18 @@ const createInvoiceSchema = Joi.object({
 
 const recordPaymentSchema = Joi.object({
   customerId: Joi.string().uuid().required(),
-  invoiceId: Joi.string().uuid().optional(),
+  invoiceId: Joi.string().uuid().optional().allow(null, ''),
   amount: Joi.number().positive().required(), // Mantener positive, el frontend ya valida > 0
   paymentMethod: Joi.string().valid('CASH', 'BANK_TRANSFER', 'CREDIT_CARD', 'DEBIT_CARD', 'CHECK', 'DIGITAL_WALLET').required(),
-  walletProvider: Joi.string().optional().allow(''), // Añadido
-  reference: Joi.string().optional().allow(''),
-  paymentDate: Joi.date().iso().required(),
-  notes: Joi.string().optional().allow(''),
-  createdBy: Joi.string().uuid().required(), // Añadido
+  walletProvider: Joi.string().optional().allow(null, ''), // Añadido
+  reference: Joi.string().optional().allow(null, ''),
+  paymentDate: Joi.alternatives().try(
+    Joi.date().iso(),
+    Joi.date(),
+    Joi.string()
+  ).required(),
+  notes: Joi.string().optional().allow(null, ''),
+  createdBy: Joi.string().uuid().optional(), // Opcional, se puede pasar como parámetro
 });
 
 const updateBillingAccountSchema = Joi.object({

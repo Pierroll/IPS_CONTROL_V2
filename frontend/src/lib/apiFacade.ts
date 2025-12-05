@@ -1052,11 +1052,14 @@ const apiFacade = {
 
   async updateTicketStatus(id: string, status: string): Promise<{ message: string; ticket: Ticket }> {
     const token = getToken();
+    const payload = { status };
+    console.log("📤 Enviando updateTicketStatus:", { id, status, payload });
     const response = await fetch(`${API_URL}/tickets/${id}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(payload),
     });
+    console.log("📥 Respuesta updateTicketStatus:", response.status, response.statusText);
     return handleResponse(response);
   },
 
@@ -1711,6 +1714,92 @@ async deletePayment(paymentId: string): Promise<{ message: string; payment: any 
       
       throw error;
     }
+  },
+
+  async getPaymentReport(filters: {
+    createdBy?: string;
+    from?: string;
+    to?: string;
+    deviceId?: string;
+    customerId?: string;
+    paymentMethod?: string;
+  }): Promise<{
+    payments: any[];
+    summary: {
+      totalPayments: number;
+      totalAmount: number;
+      byMethod: Record<string, { count: number; total: number }>;
+    };
+  }> {
+    const token = getToken();
+    const qs = new URLSearchParams();
+    
+    if (filters.createdBy) qs.append("createdBy", filters.createdBy);
+    if (filters.from) qs.append("from", filters.from);
+    if (filters.to) qs.append("to", filters.to);
+    if (filters.deviceId) qs.append("deviceId", filters.deviceId);
+    if (filters.customerId) qs.append("customerId", filters.customerId);
+    if (filters.paymentMethod) qs.append("paymentMethod", filters.paymentMethod);
+
+    const url = `${API_URL}/reports/payments${qs.toString() ? `?${qs.toString()}` : ""}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    
+    const data = await handleResponse(response);
+    
+    return {
+      payments: data.payments.map((p: any) => ({
+        ...p,
+        paymentDate: new Date(p.paymentDate),
+        amount: parseFloat(p.amount),
+      })),
+      summary: {
+        totalPayments: data.summary.totalPayments,
+        totalAmount: parseFloat(data.summary.totalAmount),
+        byMethod: data.summary.byMethod,
+      },
+    };
+  },
+
+  async downloadPaymentReportPdf(filters: {
+    createdBy?: string;
+    from?: string;
+    to?: string;
+    deviceId?: string;
+    customerId?: string;
+    paymentMethod?: string;
+  }): Promise<void> {
+    const token = getToken();
+    const qs = new URLSearchParams();
+    
+    if (filters.createdBy) qs.append("createdBy", filters.createdBy);
+    if (filters.from) qs.append("from", filters.from);
+    if (filters.to) qs.append("to", filters.to);
+    if (filters.deviceId) qs.append("deviceId", filters.deviceId);
+    if (filters.customerId) qs.append("customerId", filters.customerId);
+    if (filters.paymentMethod) qs.append("paymentMethod", filters.paymentMethod);
+
+    const url = `${API_URL}/reports/payments/pdf${qs.toString() ? `?${qs.toString()}` : ""}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: `Error ${response.status}` }));
+      throw new Error(error.error || `Error ${response.status}`);
+    }
+
+    // Descargar el PDF
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `reporte-pagos-${Date.now()}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
   },
 };
 
