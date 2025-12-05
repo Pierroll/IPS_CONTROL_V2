@@ -94,6 +94,9 @@ cache/
 server/
 static/
 *.zip
+
+# WhatsApp API - Carpeta completa (se sube manualmente con scp)
+API-Whatsapp/
 kirim-wa/
 .next/
 out/

@@ -246,8 +246,13 @@ const updateTicket = async (id, data, userId) => {
 
 const updateTicketStatus = async (id, status, userId) => {
   const validStatuses = ['PENDIENTE', 'ASIGNADO', 'EN_PROGRESO', 'ESCALADO', 'EN_ESPERA', 'RESUELTO', 'CERRADO', 'CANCELADO'];
+  
+  if (!status) {
+    throw new Error('El estado es requerido');
+  }
+  
   if (!validStatuses.includes(status)) {
-    throw new Error('Estado de ticket inválido');
+    throw new Error(`Estado de ticket inválido: "${status}". Estados válidos: ${validStatuses.join(', ')}`);
   }
 
   const ticket = await prisma.ticket.findUnique({ where: { id } });
@@ -258,8 +263,10 @@ const updateTicketStatus = async (id, status, userId) => {
     data: {
       ticketId: id,
       action: 'STATUS_CHANGED',
-      description: `Estado cambiado de ${ticket.status} a ${status}`,
       userId,
+      oldValue: { status: ticket.status },
+      newValue: { status: status },
+      notes: `Estado cambiado de ${ticket.status} a ${status}`,
     },
   });
 

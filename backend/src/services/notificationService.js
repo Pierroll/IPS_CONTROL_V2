@@ -5,6 +5,7 @@
 // ============================================
 
 const fs = require('fs');
+const path = require('path');
 const prisma = require('../models/prismaClient');
 const { postJson } = require('../utils/httpClient');
 const Joi = require('joi');
@@ -89,6 +90,7 @@ async function sendPaymentReminder(customerId, message, invoiceId) {
   console.log(`📤 Enviando mensaje de recordatorio a ${phone}...`);
   
   try {
+    // Nueva API no requiere API_KEY en el header
     await postJson(url, { 
       to: phone, 
       message: message 
@@ -152,17 +154,38 @@ async function sendWhatsAppWithDocument(customerId, message, filePath) {
   console.log(`📤 Enviando PDF a ${phone}...`);
   console.log(`📄 Archivo: ${filePath}`);
   console.log(`💬 Mensaje: ${message}`);
+  console.log(`🌐 URL de WhatsApp API: ${url}`);
   
-  const response = await postJson(url, {
-    to: phone,
-    path: filePath,
-    message: message,
-  }, {
-    'Content-Type': 'application/json'
-  });
+  // Convertir ruta relativa a absoluta si es necesario
+  const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(__dirname, '../../', filePath);
   
-  console.log(`✅ PDF enviado correctamente`);
-  return response;
+  try {
+    const response = await postJson(url, {
+      to: phone,
+      path: absolutePath,
+      message: message,
+    }, {
+      'Content-Type': 'application/json'
+    });
+    
+    console.log(`✅ PDF enviado correctamente`);
+    return response;
+  } catch (error) {
+    console.error(`❌ Error en postJson a ${url}:`, error.message);
+    console.error(`❌ Status code:`, error.status);
+    console.error(`❌ Response body:`, error.responseBody || error.body);
+    console.error(`❌ Error completo:`, error);
+    
+    // Mejorar el mensaje de error para el usuario
+    let errorMessage = error.message;
+    if (error.status === 500) {
+      errorMessage = `Error del servidor de WhatsApp: ${error.body?.error || error.message}`;
+    } else if (error.code === 'ECONNREFUSED') {
+      errorMessage = 'No se pudo conectar a la API de WhatsApp. Verifica que esté corriendo.';
+    }
+    
+    throw new Error(errorMessage);
+  }
 }
 
 module.exports = {

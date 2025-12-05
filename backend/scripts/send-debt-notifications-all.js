@@ -256,6 +256,7 @@ async function main() {
         });
       }
 
+<<<<<<< HEAD
       // Esperar 20 segundos entre envíos para evitar bloqueos de WhatsApp
       if (i < customers.length - 1 && !DRY_RUN) {
         const waitSeconds = 20;

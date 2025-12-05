@@ -28,16 +28,38 @@ function postJson(url, data, customHeaders = {}) {
         res.on('end', () => {
           try {
             const json = JSON.parse(body || '{}');
-            if (res.statusCode >= 200 && res.statusCode < 300) resolve(json);
-            else reject(Object.assign(new Error(json.message || `HTTP ${res.statusCode}`), { status: res.statusCode, body: json }));
-          } catch {
-            if (res.statusCode >= 200 && res.statusCode < 300) resolve({});
-            else reject(new Error(`HTTP ${res.statusCode}`));
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              resolve(json);
+            } else {
+              // Incluir más información en el error
+              const errorMsg = json.error || json.message || `HTTP ${res.statusCode}`;
+              const error = new Error(errorMsg);
+              error.status = res.statusCode;
+              error.body = json;
+              error.responseBody = body;
+              reject(error);
+            }
+          } catch (parseError) {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              resolve({});
+            } else {
+              const error = new Error(`HTTP ${res.statusCode}: ${body.substring(0, 200)}`);
+              error.status = res.statusCode;
+              error.responseBody = body;
+              reject(error);
+            }
           }
         });
       });
 
-      req.on('error', reject);
+      req.on('error', (err) => {
+        // Mejorar mensaje de error para conexión rechazada
+        if (err.code === 'ECONNREFUSED') {
+          reject(new Error(`No se pudo conectar a ${url}. Verifica que la API de WhatsApp esté corriendo.`));
+        } else {
+          reject(err);
+        }
+      });
       req.write(payload);
       req.end();
     } catch (e) {
