@@ -252,8 +252,8 @@ const reactivateCustomerIfCut = async (customerId) => {
 /* =========================
  * Pagos
  * ========================= */
-const recordPayment = async (raw, createdBy) => {
-  console.log('📦 Datos recibidos en billingService.recordPayment:', { raw, createdBy });
+const recordPayment = async (raw, createdByParam) => {
+  console.log('📦 Datos recibidos en billingService.recordPayment:', { raw, createdByParam });
 
   const { error, value } = recordPaymentSchema.validate(raw, { abortEarly: false, stripUnknown: true });
   if (error) {
@@ -270,23 +270,56 @@ const recordPayment = async (raw, createdBy) => {
     paymentDate,
     notes,
     walletProvider,
+    createdBy: createdByFromBody,
   } = value;
+
+  // Usar createdBy del body si está presente, sino del parámetro
+  const createdBy = createdByFromBody || createdByParam || 'SYSTEM';
 
   const ba = await ensureBillingAccount(customerId);
 
   let payment;
   let targetInvoice;
 
+  // Buscar facturas pendientes ANTES de la transacción para validación
+  let pendingInvoices = [];
+  if (!invoiceId) {
+    pendingInvoices = await prisma.invoice.findMany({
+      where: {
+        customerId,
+        status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
+        balanceDue: { gt: 0 }
+      },
+      orderBy: { dueDate: 'desc' }
+    });
+    console.log(`🔍 Cliente ${customerId} - Balance cuenta: ${ba.balance}, Facturas pendientes: ${pendingInvoices.length}`);
+    if (pendingInvoices.length > 0) {
+      console.log(`📄 Factura pendiente: ${pendingInvoices[0].invoiceNumber}, balanceDue: ${pendingInvoices[0].balanceDue}`);
+    }
+  }
+
   // Transacción: crea el pago y actualiza saldos
   await prisma.$transaction(async (tx) => {
-    targetInvoice = invoiceId ? await tx.invoice.findUnique({ where: { id: invoiceId } }) : null;
-
-    if (invoiceId && !targetInvoice) throw new Error('Factura no encontrada');
-    if (targetInvoice && num(amount) > num(targetInvoice.balanceDue)) {
-      throw new Error(`El pago (${amount}) excede el saldo de la factura (${targetInvoice.balanceDue})`);
-    }
-    if (!invoiceId && num(amount) > num(ba.balance)) {
-      throw new Error(`El pago (${amount}) excede el saldo de la cuenta (${ba.balance})`);
+    // Si hay invoiceId, buscar esa factura específica
+    if (invoiceId) {
+      targetInvoice = await tx.invoice.findUnique({ where: { id: invoiceId } });
+      if (!targetInvoice) throw new Error('Factura no encontrada');
+      if (num(amount) > num(targetInvoice.balanceDue)) {
+        throw new Error(`El pago (${amount}) excede el saldo de la factura (${targetInvoice.balanceDue})`);
+      }
+    } else {
+      // Si no hay invoiceId, usar la factura pendiente más reciente si existe
+      if (pendingInvoices.length > 0) {
+        targetInvoice = await tx.invoice.findUnique({ where: { id: pendingInvoices[0].id } });
+        if (targetInvoice && num(amount) > num(targetInvoice.balanceDue)) {
+          throw new Error(`El pago (${amount}) excede el saldo de la factura (${targetInvoice.balanceDue})`);
+        }
+      } else {
+        // Si no hay facturas pendientes, permitir el pago
+        // El balance puede estar desactualizado o puede ser un pago adelantado
+        // No validar contra el balance en este caso
+        console.log(`⚠️ No hay facturas pendientes para el cliente ${customerId}, permitiendo pago de ${amount}`);
+      }
     }
 
     if (!targetInvoice) {
@@ -387,11 +420,30 @@ const recordPayment = async (raw, createdBy) => {
     data: { receiptUrl },
   });
 
-  await sendWhatsAppWithDocument(
-    customerId,
-    `Pago registrado: S/ ${num(amount).toFixed(2)} (${payment.paymentNumber || payment.id}). Adjuntamos su recibo.`,
-    filePath
-  );
+  // Enviar WhatsApp de forma no bloqueante (no debe afectar el registro del pago)
+  let whatsappSent = false;
+  let whatsappError = null;
+  
+  try {
+    await sendWhatsAppWithDocument(
+      customerId,
+      `Pago registrado: S/ ${num(amount).toFixed(2)} (${payment.paymentNumber || payment.id}). Adjuntamos su recibo.`,
+      filePath
+    );
+    whatsappSent = true;
+    console.log(`✅ WhatsApp enviado correctamente para pago ${payment.id}`);
+  } catch (whatsappErr) {
+    whatsappError = whatsappErr.message;
+    console.error(`⚠️ Error enviando WhatsApp (pago ${payment.id}):`, whatsappErr.message);
+    // No lanzar el error, solo registrar el problema
+  }
+
+  // Retornar el pago con información del estado de WhatsApp
+  return {
+    ...payment,
+    whatsappSent,
+    whatsappError
+  };
 
   // ✅ Reactivar cliente si está cortado
   try {

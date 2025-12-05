@@ -5,18 +5,17 @@
 // ============================================
 
 const fs = require('fs');
+const path = require('path');
 const prisma = require('../models/prismaClient');
 const { postJson } = require('../utils/httpClient');
 const Joi = require('joi');
 
-const BASE = process.env.WHATSAPP_API_URL || 'http://localhost:3005';
-const API_KEY = process.env.WHATSAPP_API_KEY || '22c746590447e7311801c22c4d53736d569843ebf6da3cf8498354399fe2f2e2';
+// Nueva API de WhatsApp (whatsapp-web.js) - puerto 3001 por defecto
+const BASE = process.env.WHATSAPP_API_URL || 'http://localhost:3001';
+// La nueva API no requiere API_KEY, pero mantenemos la variable por compatibilidad
+const API_KEY = process.env.WHATSAPP_API_KEY || '';
 
-if (!API_KEY) {
-  console.error('⚠️  WHATSAPP_API_KEY no está configurado en .env');
-} else {
-  console.log('✅ WHATSAPP_API_KEY cargado correctamente');
-}
+console.log(`✅ WhatsApp API URL: ${BASE}`);
 
 const getNotificationsSchema = Joi.object({
   customerId: Joi.string().uuid().optional(),
@@ -92,11 +91,11 @@ async function sendPaymentReminder(customerId, message, invoiceId) {
   console.log(`📤 Enviando mensaje de recordatorio a ${phone}...`);
   
   try {
+    // Nueva API no requiere API_KEY en el header
     await postJson(url, { 
       to: phone, 
       message: message 
     }, {
-      'X-API-Key': API_KEY,
       'Content-Type': 'application/json'
     });
 
@@ -156,18 +155,38 @@ async function sendWhatsAppWithDocument(customerId, message, filePath) {
   console.log(`📤 Enviando PDF a ${phone}...`);
   console.log(`📄 Archivo: ${filePath}`);
   console.log(`💬 Mensaje: ${message}`);
+  console.log(`🌐 URL de WhatsApp API: ${url}`);
   
-  const response = await postJson(url, {
-    to: phone,
-    path: filePath,
-    message: message,
-  }, {
-    'X-API-Key': API_KEY,
-    'Content-Type': 'application/json'
-  });
+  // Convertir ruta relativa a absoluta si es necesario
+  const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(__dirname, '../../', filePath);
   
-  console.log(`✅ PDF enviado correctamente`);
-  return response;
+  try {
+    const response = await postJson(url, {
+      to: phone,
+      path: absolutePath,
+      message: message,
+    }, {
+      'Content-Type': 'application/json'
+    });
+    
+    console.log(`✅ PDF enviado correctamente`);
+    return response;
+  } catch (error) {
+    console.error(`❌ Error en postJson a ${url}:`, error.message);
+    console.error(`❌ Status code:`, error.status);
+    console.error(`❌ Response body:`, error.responseBody || error.body);
+    console.error(`❌ Error completo:`, error);
+    
+    // Mejorar el mensaje de error para el usuario
+    let errorMessage = error.message;
+    if (error.status === 500) {
+      errorMessage = `Error del servidor de WhatsApp: ${error.body?.error || error.message}`;
+    } else if (error.code === 'ECONNREFUSED') {
+      errorMessage = 'No se pudo conectar a la API de WhatsApp. Verifica que esté corriendo.';
+    }
+    
+    throw new Error(errorMessage);
+  }
 }
 
 module.exports = {

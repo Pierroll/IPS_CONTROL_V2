@@ -48,7 +48,11 @@ cron.schedule('0 9 * * *', async () => {
       const balance = Number(c.billingAccount?.balance || 0).toFixed(2);
       const msg = `Hola, ${c.name}. Recordatorio de pago: saldo S/ ${balance} por ${planName}. ` +
                   `Evita la suspensión pagando antes del día 1°. ¡Gracias!`;
-      await notificationService.sendPaymentReminder(c.id, msg);
+      try {
+        await notificationService.sendPaymentReminder(c.id, msg, null);
+      } catch (err) {
+        console.error(`[DunningJob-Reminders] Error enviando a ${c.name}:`, err.message);
+      }
     }
 
     console.log(`[DunningJob-Reminders] Recordatorios enviados a ${customers.length} clientes (faltan ${daysLeft} días).`);

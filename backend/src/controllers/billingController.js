@@ -32,15 +32,46 @@ const getInvoiceById = async (req, res) => {
 
 const recordPayment = async (req, res) => {
   try {
-    console.log("📥 Body recibido en recordPayment:", req.body);
-    const payment = await billingService.recordPayment(req.body, req.user.userId);
+    console.log("📥 Body recibido en recordPayment:", JSON.stringify(req.body, null, 2));
+    console.log("📥 Usuario autenticado:", req.user);
+    
+    // Asegurar que createdBy esté en el body (usar el del body o el del usuario autenticado)
+    const payload = {
+      ...req.body,
+      createdBy: req.body.createdBy || req.user?.userId
+    };
+    
+    console.log("📥 Payload procesado:", JSON.stringify(payload, null, 2));
+    
+    // Validar que createdBy esté presente
+    if (!payload.createdBy) {
+      console.error("❌ createdBy no está presente en el payload");
+      return res.status(400).json({ error: 'createdBy es requerido' });
+    }
+    
+    const result = await billingService.recordPayment(payload, payload.createdBy);
+    
+    // Extraer información de WhatsApp del resultado
+    const { whatsappSent, whatsappError, ...payment } = result;
+    
+    // Construir mensaje de respuesta
+    let message = 'Pago registrado exitosamente';
+    if (whatsappSent) {
+      message += '. El recibo fue enviado por WhatsApp.';
+    } else if (whatsappError) {
+      message += `. ⚠️ El recibo no pudo ser enviado por WhatsApp: ${whatsappError}`;
+    }
+    
     res.status(201).json({ 
-    message: 'Pago registrado exitosamente',
-    payment: payment 
+      message,
+      payment,
+      whatsappSent: whatsappSent || false,
+      whatsappError: whatsappError || null
     });
   } catch (error) {
-  console.error("❌ Error completo en recordPayment:", error);
-  res.status(400).json({ error: error.message || 'Error desconocido al registrar el pago' });
+    console.error("❌ Error completo en recordPayment:", error);
+    console.error("❌ Stack trace:", error.stack);
+    res.status(400).json({ error: error.message || 'Error desconocido al registrar el pago' });
   }
 };
 
