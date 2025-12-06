@@ -1,6 +1,7 @@
 // Script para enviar notificaciones de deuda a todos los clientes con saldo pendiente
-// Uso: node scripts/send-debt-notifications-all.js [--dry-run] [--limit N]
+// Uso: node scripts/send-debt-notifications-all.js [--dry-run] [--limit N] [--start-from N]
 // Para cron: node /ruta/completa/scripts/send-debt-notifications-all.js
+// Para continuar desde un cliente específico: node scripts/send-debt-notifications-all.js --start-from=267
 
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const prisma = require('../src/models/prismaClient');
@@ -9,6 +10,8 @@ const { postJson } = require('../src/utils/httpClient');
 const DRY_RUN = process.argv.includes('--dry-run');
 const LIMIT_ARG = process.argv.find(arg => arg.startsWith('--limit='));
 const LIMIT = LIMIT_ARG ? parseInt(LIMIT_ARG.split('=')[1]) : null;
+const START_FROM_ARG = process.argv.find(arg => arg.startsWith('--start-from='));
+const START_FROM = START_FROM_ARG ? parseInt(START_FROM_ARG.split('=')[1]) : 0;
 
 const WHATSAPP_API_URL = process.env.WHATSAPP_API_URL || 'http://localhost:3001';
 
@@ -110,7 +113,11 @@ async function sendWhatsAppMessage(phone, message) {
 async function main() {
   console.log('🚀 Iniciando envío masivo de notificaciones de deuda...\n');
   console.log(`Modo: ${DRY_RUN ? '🔍 DRY-RUN (solo simulación)' : '📤 ENVÍO REAL'}`);
-  console.log(`API WhatsApp: ${WHATSAPP_API_URL}\n`);
+  console.log(`API WhatsApp: ${WHATSAPP_API_URL}`);
+  if (START_FROM > 0) {
+    console.log(`📍 Continuando desde el cliente #${START_FROM}`);
+  }
+  console.log('');
 
   try {
     // Buscar todos los clientes con deuda
@@ -149,6 +156,17 @@ async function main() {
       return;
     }
 
+    // Validar START_FROM
+    if (START_FROM >= customers.length) {
+      console.log(`⚠️  El índice de inicio (${START_FROM}) es mayor o igual al total de clientes (${customers.length})`);
+      console.log('✅ No hay más clientes para procesar.');
+      return;
+    }
+
+    if (START_FROM > 0) {
+      console.log(`⏭️  Omitiendo los primeros ${START_FROM} clientes (ya procesados)\n`);
+    }
+
     const results = {
       total: customers.length,
       sent: 0,
@@ -157,7 +175,7 @@ async function main() {
       errors: []
     };
 
-    for (let i = 0; i < customers.length; i++) {
+    for (let i = START_FROM; i < customers.length; i++) {
       const customer = customers[i];
       const latestInvoice = customer.invoices?.[0];
       const balance = Number(customer.billingAccount?.balance || 0);
@@ -256,7 +274,6 @@ async function main() {
         });
       }
 
-<<<<<<< HEAD
       // Esperar 20 segundos entre envíos para evitar bloqueos de WhatsApp
       if (i < customers.length - 1 && !DRY_RUN) {
         const waitSeconds = 20;
